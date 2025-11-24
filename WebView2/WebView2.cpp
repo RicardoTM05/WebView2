@@ -200,6 +200,9 @@ void CreateWebView2(Measure* measure)
                             GetClientRect(measure->webViewWindow, &bounds);
                             measure->webViewController->put_Bounds(bounds);
                             
+                            // Set initial visibility
+                            measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
+                            
                             // Navigate to URL
                             if (!measure->url.empty())
                             {
@@ -312,6 +315,12 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
             );
             
             ShowWindow(measure->webViewWindow, measure->visible ? SW_SHOW : SW_HIDE);
+            
+            // Update WebView2 controller visibility
+            if (measure->webViewController)
+            {
+                measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
+            }
         }
     }
 }
@@ -380,6 +389,12 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
         {
             ShowWindow(measure->webViewWindow, SW_SHOW);
             measure->visible = true;
+            
+            // Also make WebView2 controller visible
+            if (measure->webViewController)
+            {
+                measure->webViewController->put_IsVisible(TRUE);
+            }
         }
     }
     else if (_wcsicmp(action.c_str(), L"Hide") == 0)
@@ -388,6 +403,12 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
         {
             ShowWindow(measure->webViewWindow, SW_HIDE);
             measure->visible = false;
+            
+            // Also hide WebView2 controller
+            if (measure->webViewController)
+            {
+                measure->webViewController->put_IsVisible(FALSE);
+            }
         }
     }
     else if (_wcsicmp(action.c_str(), L"ExecuteScript") == 0)
