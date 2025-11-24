@@ -219,7 +219,7 @@ This creates:
 
 ### WebView2 doesn't appear
 - Ensure WebView2 Runtime is installed
-- Check Rainmeter log (Ctrl+Shift+L) for error messages
+- Check Rainmeter log for error messages
 - Verify the skin window is visible and has appropriate dimensions
 
 ### File paths not loading
@@ -230,10 +230,6 @@ This creates:
 ### Access Denied Error
 - The plugin uses TEMP directory for WebView2 data
 - Ensure you have write permissions to `%TEMP%\RainmeterWebView2`
-
-### Hide/Show not working
-- Make sure you're using the latest version (v1.0.0+)
-- The plugin properly synchronizes window and controller visibility
 
 ## 📝 Technical Details
 
