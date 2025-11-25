@@ -1,78 +1,17 @@
-#include <Windows.h>
-#include <string>
-#include <wrl.h>
-#include <wil/com.h>
+#include "Plugin.h"
 #include "../API/RainmeterAPI.h"
 
-// WebView2 includes
-#include <WebView2.h>
-
-#pragma comment(lib, "ole32.lib")
-#pragma comment(lib, "oleaut32.lib")
-
-using namespace Microsoft::WRL;
-
-// Global COM initialization tracking
-static bool g_comInitialized = false;
-
-struct Measure
-{
-    void* rm;
-    void* skin;
-    HWND skinWindow;
-    HWND webViewWindow;
-    LPCWSTR measureName;
-    
-    std::wstring url;
-    int width;
-    int height;
-    int x;
-    int y;
-    bool visible;
-    bool initialized;
-    
-    wil::com_ptr<ICoreWebView2Controller> webViewController;
-    wil::com_ptr<ICoreWebView2> webView;
-    
-    Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
-                webViewWindow(nullptr), measureName(nullptr),
-                width(800), height(600), x(0), y(0), 
-                visible(true), initialized(false)
-    {
-        // Initialize COM for this thread if not already done
-        if (!g_comInitialized)
-        {
-            HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-            if (SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE)
-            {
-                g_comInitialized = true;
-            }
-        }
-    }
-    
-    ~Measure()
-    {
-        if (webViewController)
-        {
-            webViewController->Close();
-            webViewController = nullptr;
-        }
-        
-        if (webViewWindow && IsWindow(webViewWindow))
-        {
-            DestroyWindow(webViewWindow);
-            webViewWindow = nullptr;
-        }
-    }
-};
+// Window class registration flag
+static bool g_windowClassRegistered = false;
 
 // Window procedure for WebView2 host window
-LRESULT CALLBACK WebViewWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch (msg)
+    switch (uMsg)
     {
         case WM_SIZE:
         {
+            // Get measure from window user data
             Measure* measure = reinterpret_cast<Measure*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
             if (measure && measure->webViewController)
             {
@@ -82,34 +21,31 @@ LRESULT CALLBACK WebViewWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             }
             return 0;
         }
+        
         case WM_DESTROY:
             return 0;
+            
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
 // Register window class for WebView2 host
 void RegisterWebViewWindowClass()
 {
-    static bool registered = false;
-    if (!registered)
+    if (g_windowClassRegistered)
+        return;
+    
+    WNDCLASSEX wc = { 0 };
+    wc.cbSize = sizeof(WNDCLASSEX);
+    wc.lpfnWndProc = WebViewWindowProc;
+    wc.hInstance = GetModuleHandle(nullptr);
+    wc.lpszClassName = L"RainmeterWebView2Host";
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    
+    if (RegisterClassEx(&wc))
     {
-        WNDCLASSEX wcex = {};
-        wcex.cbSize = sizeof(WNDCLASSEX);
-        wcex.style = CS_HREDRAW | CS_VREDRAW;
-        wcex.lpfnWndProc = WebViewWndProc;
-        wcex.cbClsExtra = 0;
-        wcex.cbWndExtra = 0;
-        wcex.hInstance = GetModuleHandle(nullptr);
-        wcex.hIcon = nullptr;
-        wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-        wcex.lpszMenuName = nullptr;
-        wcex.lpszClassName = L"RainmeterWebView2Host";
-        wcex.hIconSm = nullptr;
-        
-        RegisterClassEx(&wcex);
-        registered = true;
+        g_windowClassRegistered = true;
     }
 }
 
@@ -233,203 +169,4 @@ void CreateWebView2(Measure* measure)
             RmLog(measure->rm, LOG_ERROR, errorMsg);
         }
     }
-}
-
-PLUGIN_EXPORT void Initialize(void** data, void* rm)
-{
-    Measure* measure = new Measure;
-    *data = measure;
-    
-    measure->rm = rm;
-    measure->skin = RmGetSkin(rm);
-    measure->skinWindow = RmGetSkinWindow(rm);
-    measure->measureName = RmGetMeasureName(rm);
-}
-
-PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
-{
-    Measure* measure = (Measure*)data;
-    
-    // Read URL option
-    LPCWSTR urlOption = RmReadString(rm, L"Url", L"");
-    if (urlOption && *urlOption)
-    {
-        // Check if it's a file path
-        std::wstring urlStr = urlOption;
-        if (urlStr.find(L"://") == std::wstring::npos)
-        {
-            // It's a file path, convert to absolute path
-            LPCWSTR absolutePath = RmPathToAbsolute(rm, urlOption);
-            
-            // Convert to file:/// URL
-            std::wstring fileUrl = L"file:///";
-            std::wstring path = absolutePath;
-            
-            // Replace backslashes with forward slashes
-            for (size_t i = 0; i < path.length(); i++)
-            {
-                if (path[i] == L'\\')
-                    path[i] = L'/';
-            }
-            
-            measure->url = fileUrl + path;
-        }
-        else
-        {
-            // It's already a URL
-            measure->url = urlStr;
-        }
-    }
-    
-    // Read dimensions
-    measure->width = RmReadInt(rm, L"Width", 800);
-    measure->height = RmReadInt(rm, L"Height", 600);
-    measure->x = RmReadInt(rm, L"X", 0);
-    measure->y = RmReadInt(rm, L"Y", 0);
-    
-    // Read visibility
-    measure->visible = RmReadInt(rm, L"Visible", 1) != 0;
-    
-    // Create WebView2 if not already created
-    if (!measure->initialized)
-    {
-        CreateWebView2(measure);
-    }
-    else
-    {
-        // Update existing WebView
-        if (measure->webView && !measure->url.empty())
-        {
-            measure->webView->Navigate(measure->url.c_str());
-        }
-        
-        // Update window position and size
-        if (measure->webViewWindow)
-        {
-            SetWindowPos(
-                measure->webViewWindow,
-                nullptr,
-                measure->x, measure->y,
-                measure->width, measure->height,
-                SWP_NOZORDER | SWP_NOACTIVATE
-            );
-            
-            ShowWindow(measure->webViewWindow, measure->visible ? SW_SHOW : SW_HIDE);
-            
-            // Update WebView2 controller visibility
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
-            }
-        }
-    }
-}
-
-PLUGIN_EXPORT double Update(void* data)
-{
-    Measure* measure = (Measure*)data;
-    return measure->initialized ? 1.0 : 0.0;
-}
-
-PLUGIN_EXPORT LPCWSTR GetString(void* data)
-{
-    Measure* measure = (Measure*)data;
-    static std::wstring result;
-    
-    if (measure->initialized)
-    {
-        result = L"WebView2 Initialized";
-    }
-    else
-    {
-        result = L"WebView2 Initializing...";
-    }
-    
-    return result.c_str();
-}
-
-PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
-{
-    Measure* measure = (Measure*)data;
-    
-    if (!measure || !measure->webView)
-        return;
-    
-    std::wstring command = args;
-    
-    // Parse command
-    size_t spacePos = command.find(L' ');
-    std::wstring action = (spacePos != std::wstring::npos) ? 
-                          command.substr(0, spacePos) : command;
-    std::wstring param = (spacePos != std::wstring::npos) ? 
-                         command.substr(spacePos + 1) : L"";
-    
-    if (_wcsicmp(action.c_str(), L"Navigate") == 0)
-    {
-        if (!param.empty())
-        {
-            measure->webView->Navigate(param.c_str());
-        }
-    }
-    else if (_wcsicmp(action.c_str(), L"Reload") == 0)
-    {
-        measure->webView->Reload();
-    }
-    else if (_wcsicmp(action.c_str(), L"GoBack") == 0)
-    {
-        measure->webView->GoBack();
-    }
-    else if (_wcsicmp(action.c_str(), L"GoForward") == 0)
-    {
-        measure->webView->GoForward();
-    }
-    else if (_wcsicmp(action.c_str(), L"Show") == 0)
-    {
-        if (measure->webViewWindow)
-        {
-            ShowWindow(measure->webViewWindow, SW_SHOW);
-            measure->visible = true;
-            
-            // Also make WebView2 controller visible
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(TRUE);
-            }
-        }
-    }
-    else if (_wcsicmp(action.c_str(), L"Hide") == 0)
-    {
-        if (measure->webViewWindow)
-        {
-            ShowWindow(measure->webViewWindow, SW_HIDE);
-            measure->visible = false;
-            
-            // Also hide WebView2 controller
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(FALSE);
-            }
-        }
-    }
-    else if (_wcsicmp(action.c_str(), L"ExecuteScript") == 0)
-    {
-        if (!param.empty())
-        {
-            measure->webView->ExecuteScript(
-                param.c_str(),
-                Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-                    [](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
-                    {
-                        return S_OK;
-                    }
-                ).Get()
-            );
-        }
-    }
-}
-
-PLUGIN_EXPORT void Finalize(void* data)
-{
-    Measure* measure = (Measure*)data;
-    delete measure;
 }

@@ -22,7 +22,11 @@
     <ResourceCompile Include="WebView2.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Plugin.cpp" />
     <ClCompile Include="WebView2.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Plugin.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
