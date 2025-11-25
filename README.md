@@ -82,9 +82,12 @@ LeftMouseUpAction=[!CommandMeasure MeasureWebView "Hide"]
 
 ; Execute JavaScript
 LeftMouseUpAction=[!CommandMeasure MeasureWebView "ExecuteScript alert('Hello!')"]
+
+;Open DevTools
+LeftMouseUpAction=[!CommandMeasure MeasureWebView "OpenDevTools"]
 ```
 
-## 💡 Examples
+## 💡 Examples  
 
 ### Example 1: Mouse Drag Test
 

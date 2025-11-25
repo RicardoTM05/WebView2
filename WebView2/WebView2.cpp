@@ -143,10 +143,15 @@ void CreateWebView2(Measure* measure)
                             // Set initial visibility
                             measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
                             
-                            // Enable host objects in settings
+                            // Enable host objects and JavaScript in settings
                             wil::com_ptr<ICoreWebView2Settings> settings;
                             measure->webView->get_Settings(&settings);
+                            settings->put_IsScriptEnabled(TRUE);
+                            settings->put_AreDefaultScriptDialogsEnabled(TRUE);
+                            settings->put_IsWebMessageEnabled(TRUE);
                             settings->put_AreHostObjectsAllowed(TRUE);
+                            settings->put_AreDevToolsEnabled(TRUE);
+                            settings->put_AreDefaultContextMenusEnabled(TRUE);
                             
                             // Create and inject COM Host Object for Rainmeter API
                             wil::com_ptr<HostObjectRmAPI> hostObject = 

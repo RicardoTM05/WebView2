@@ -298,6 +298,10 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
             );
         }
     }
+    else if (_wcsicmp(action.c_str(), L"OpenDevTools") == 0)
+    {
+        measure->webView->OpenDevToolsWindow();
+    }
 }
 
 PLUGIN_EXPORT void Finalize(void* data)
