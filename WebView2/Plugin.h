@@ -27,6 +27,7 @@ struct Measure
     int y;
     bool visible;
     bool initialized;
+    bool isCleaningUp;
     
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;

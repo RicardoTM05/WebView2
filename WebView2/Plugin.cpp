@@ -51,7 +51,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
             webViewWindow(nullptr), measureName(nullptr),
             width(800), height(600), x(0), y(0), 
-            visible(true), initialized(false), webMessageToken{}
+            visible(true), initialized(false), isCleaningUp(false), webMessageToken{}
 {
     // Initialize COM for this thread if not already done
     if (!g_comInitialized)
@@ -67,7 +67,10 @@ Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr),
 // Measure destructor
 Measure::~Measure()
 {
-    // Proper cleanup sequence to prevent crashes
+    // Mark that cleanup is in progress
+    isCleaningUp = true;
+    
+    // Proper cleanup sequence to prevent crashes and race conditions
     
     // 1. Remove event handlers first
     if (webView && webMessageToken.value != 0)
@@ -89,8 +92,9 @@ Measure::~Measure()
         webView.reset(); // Explicit release
     }
     
-    // 4. Small delay to allow async cleanup
-    Sleep(50);
+    // 4. Longer delay to ensure WebView2 runtime fully releases resources
+    // This prevents 0x80080005 error on skin refresh
+    Sleep(250);
     
     // 5. Destroy window last
     if (webViewWindow && IsWindow(webViewWindow))
@@ -98,6 +102,9 @@ Measure::~Measure()
         DestroyWindow(webViewWindow);
         webViewWindow = nullptr;
     }
+    
+    // 6. Final delay to ensure complete cleanup
+    Sleep(50);
 }
 
 // Rainmeter Plugin Exports
@@ -163,7 +170,7 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     measure->visible = RmReadInt(rm, L"Visible", 1) != 0;
     
     // Create WebView2 if not already created
-    if (!measure->initialized)
+    if (!measure->initialized && !measure->isCleaningUp)
     {
         CreateWebView2(measure);
     }

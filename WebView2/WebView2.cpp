@@ -115,14 +115,105 @@ void CreateWebView2(Measure* measure)
                     return result;
                 }
                 
-                // Create WebView2 controller
+                // Helper function to initialize controller after successful creation
+                auto initializeController = [measure](ICoreWebView2Controller* controller) -> HRESULT
+                {
+                    measure->webViewController = controller;
+                    measure->webViewController->get_CoreWebView2(&measure->webView);
+                    
+                    // Set bounds
+                    RECT bounds;
+                    GetClientRect(measure->webViewWindow, &bounds);
+                    measure->webViewController->put_Bounds(bounds);
+                    
+                    // Set initial visibility
+                    measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
+                    
+                    // Enable host objects and JavaScript in settings
+                    wil::com_ptr<ICoreWebView2Settings> settings;
+                    measure->webView->get_Settings(&settings);
+                    settings->put_IsScriptEnabled(TRUE);
+                    settings->put_AreDefaultScriptDialogsEnabled(TRUE);
+                    settings->put_IsWebMessageEnabled(TRUE);
+                    settings->put_AreHostObjectsAllowed(TRUE);
+                    settings->put_AreDevToolsEnabled(TRUE);
+                    settings->put_AreDefaultContextMenusEnabled(TRUE);
+                    
+                    // Create and inject COM Host Object for Rainmeter API
+                    wil::com_ptr<HostObjectRmAPI> hostObject = 
+                        Microsoft::WRL::Make<HostObjectRmAPI>(measure, g_typeLib);
+                    
+                    VARIANT variant = {};
+                    hostObject.query_to<IDispatch>(&variant.pdispVal);
+                    variant.vt = VT_DISPATCH;
+                    measure->webView->AddHostObjectToScript(L"rm", &variant);
+                    variant.pdispVal->Release();
+                    
+                    // Add script to make rm available globally
+                    measure->webView->AddScriptToExecuteOnDocumentCreated(
+                        L"window.rm = chrome.webview.hostObjects.sync.rm",
+                        nullptr
+                    );
+                    
+                    // Navigate to URL
+                    if (!measure->url.empty())
+                    {
+                        measure->webView->Navigate(measure->url.c_str());
+                    }
+                    
+                    measure->initialized = true;
+                    
+                    if (measure->rm)
+                        RmLog(measure->rm, LOG_NOTICE, L"WebView2: Initialized successfully with COM Host Objects");
+                    
+                    return S_OK;
+                };
+                
+                // Create WebView2 controller with retry for 0x80080005
                 env->CreateCoreWebView2Controller(
                     measure->webViewWindow,
                     Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                        [measure](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
+                        [measure, env, initializeController](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
                         {
                             if (FAILED(result))
                             {
+                                // Retry once for 0x80080005 (CO_E_SERVER_EXEC_FAILURE)
+                                // This error occurs when previous instance is still cleaning up
+                                if (result == 0x80080005)
+                                {
+                                    if (measure->rm)
+                                    {
+                                        RmLog(measure->rm, LOG_WARNING, L"WebView2: Controller creation failed (previous instance cleaning up), retrying after delay...");
+                                    }
+                                    
+                                    // Wait for previous instance to fully clean up
+                                    Sleep(300);
+                                    
+                                    // Single retry attempt
+                                    env->CreateCoreWebView2Controller(
+                                        measure->webViewWindow,
+                                        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                                            [measure, initializeController](HRESULT retryResult, ICoreWebView2Controller* retryController) -> HRESULT
+                                            {
+                                                if (FAILED(retryResult))
+                                                {
+                                                    if (measure->rm)
+                                                    {
+                                                        wchar_t errorMsg[256];
+                                                        swprintf_s(errorMsg, L"WebView2: Failed to create controller after retry (HRESULT: 0x%08X)", retryResult);
+                                                        RmLog(measure->rm, LOG_ERROR, errorMsg);
+                                                    }
+                                                    return retryResult;
+                                                }
+                                                
+                                                return initializeController(retryController);
+                                            }
+                                        ).Get()
+                                    );
+                                    
+                                    return result;
+                                }
+                                
                                 if (measure->rm)
                                 {
                                     wchar_t errorMsg[256];
@@ -132,55 +223,7 @@ void CreateWebView2(Measure* measure)
                                 return result;
                             }
                             
-                            measure->webViewController = controller;
-                            measure->webViewController->get_CoreWebView2(&measure->webView);
-                            
-                            // Set bounds
-                            RECT bounds;
-                            GetClientRect(measure->webViewWindow, &bounds);
-                            measure->webViewController->put_Bounds(bounds);
-                            
-                            // Set initial visibility
-                            measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
-                            
-                            // Enable host objects and JavaScript in settings
-                            wil::com_ptr<ICoreWebView2Settings> settings;
-                            measure->webView->get_Settings(&settings);
-                            settings->put_IsScriptEnabled(TRUE);
-                            settings->put_AreDefaultScriptDialogsEnabled(TRUE);
-                            settings->put_IsWebMessageEnabled(TRUE);
-                            settings->put_AreHostObjectsAllowed(TRUE);
-                            settings->put_AreDevToolsEnabled(TRUE);
-                            settings->put_AreDefaultContextMenusEnabled(TRUE);
-                            
-                            // Create and inject COM Host Object for Rainmeter API
-                            wil::com_ptr<HostObjectRmAPI> hostObject = 
-                                Microsoft::WRL::Make<HostObjectRmAPI>(measure, g_typeLib);
-                            
-                            VARIANT variant = {};
-                            hostObject.query_to<IDispatch>(&variant.pdispVal);
-                            variant.vt = VT_DISPATCH;
-                            measure->webView->AddHostObjectToScript(L"rm", &variant);
-                            variant.pdispVal->Release();
-                            
-                            // Add script to make rm available globally
-                            measure->webView->AddScriptToExecuteOnDocumentCreated(
-                                L"window.rm = chrome.webview.hostObjects.sync.rm",
-                                nullptr
-                            );
-                            
-                            // Navigate to URL
-                            if (!measure->url.empty())
-                            {
-                                measure->webView->Navigate(measure->url.c_str());
-                            }
-                            
-                            measure->initialized = true;
-                            
-                            if (measure->rm)
-                                RmLog(measure->rm, LOG_NOTICE, L"WebView2: Initialized successfully with COM Host Objects");
-                            
-                            return S_OK;
+                            return initializeController(controller);
                         }
                     ).Get()
                 );
