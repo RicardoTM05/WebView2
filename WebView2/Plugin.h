@@ -27,6 +27,7 @@ struct Measure
     
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
+    EventRegistrationToken webMessageToken;
     
     Measure();
     ~Measure();

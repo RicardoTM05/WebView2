@@ -500,7 +500,7 @@ void CreateWebView2(Measure* measure)
                             // Set initial visibility
                             measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
                             
-                            // Set up web message handler
+                            // Set up web message handler and store token for cleanup
                             measure->webView->add_WebMessageReceived(
                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
                                     [measure](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT
@@ -514,7 +514,7 @@ void CreateWebView2(Measure* measure)
                                         return S_OK;
                                     }
                                 ).Get(),
-                                nullptr
+                                &measure->webMessageToken
                             );
                             
                             // Inject JavaScript bridge

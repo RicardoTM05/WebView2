@@ -11,7 +11,7 @@ static bool g_comInitialized = false;
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
             webViewWindow(nullptr), measureName(nullptr),
             width(800), height(600), x(0), y(0), 
-            visible(true), initialized(false)
+            visible(true), initialized(false), webMessageToken{}
 {
     // Initialize COM for this thread if not already done
     if (!g_comInitialized)
@@ -27,12 +27,32 @@ Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr),
 // Measure destructor
 Measure::~Measure()
 {
+    // Proper cleanup sequence to prevent crashes
+    
+    // 1. Remove event handlers first
+    if (webView && webMessageToken.value != 0)
+    {
+        webView->remove_WebMessageReceived(webMessageToken);
+        webMessageToken = {};
+    }
+    
+    // 2. Close and release WebView2 controller
     if (webViewController)
     {
         webViewController->Close();
-        webViewController = nullptr;
+        webViewController.reset(); // Explicit release
     }
     
+    // 3. Release WebView COM pointer
+    if (webView)
+    {
+        webView.reset(); // Explicit release
+    }
+    
+    // 4. Small delay to allow async cleanup
+    Sleep(50);
+    
+    // 5. Destroy window last
     if (webViewWindow && IsWindow(webViewWindow))
     {
         DestroyWindow(webViewWindow);
