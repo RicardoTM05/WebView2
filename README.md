@@ -179,6 +179,164 @@ Create `@Resources\dashboard.html`:
 </html>
 ```
 
+## JavaScript API Bridge
+
+The WebView2 plugin automatically injects a global `rm` object into all loaded web pages, providing seamless access to Rainmeter API functions from JavaScript.
+
+## API Reference Tables
+
+### Reading Options
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `rm.ReadString(option, default)` | `option` (string), `default` (string) | Promise<string> | Read a string option from the skin |
+| `rm.ReadInt(option, default)` | `option` (string), `default` (number) | Promise<number> | Read an integer option from the skin |
+| `rm.ReadDouble(option, default)` | `option` (string), `default` (number) | Promise<number> | Read a double/float option from the skin |
+| `rm.ReadFormula(option, default)` | `option` (string), `default` (number) | Promise<number> | Read and evaluate a formula option |
+| `rm.ReadPath(option, default)` | `option` (string), `default` (string) | Promise<string> | Read a file path option from the skin |
+
+### Reading from Other Sections
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `rm.ReadStringFromSection(section, option, default)` | `section` (string), `option` (string), `default` (string) | Promise<string> | Read a string from another section/measure |
+| `rm.ReadIntFromSection(section, option, default)` | `section` (string), `option` (string), `default` (number) | Promise<number> | Read an integer from another section/measure |
+| `rm.ReadDoubleFromSection(section, option, default)` | `section` (string), `option` (string), `default` (number) | Promise<number> | Read a double from another section/measure |
+| `rm.ReadFormulaFromSection(section, option, default)` | `section` (string), `option` (string), `default` (number) | Promise<number> | Read and evaluate a formula from another section |
+
+### Utility Functions
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `rm.ReplaceVariables(text)` | `text` (string) | Promise<string> | Replace Rainmeter variables in text (e.g., `#CURRENTCONFIG#`) |
+| `rm.PathToAbsolute(path)` | `path` (string) | Promise<string> | Convert relative path to absolute path |
+| `rm.Execute(command)` | `command` (string) | void | Execute a Rainmeter bang command |
+| `rm.Log(message, level)` | `message` (string), `level` (string) | void | Log a message to Rainmeter log. Levels: `'Notice'`, `'Warning'`, `'Error'`, `'Debug'` |
+
+### Information Properties
+
+| Property | Returns | Description |
+|----------|---------|-------------|
+| `rm.MeasureName` | Promise<string> | Get the name of the current measure |
+| `rm.SkinName` | Promise<string> | Get the name of the current skin |
+| `rm.SkinWindowHandle` | Promise<string> | Get the window handle of the skin |
+| `rm.SettingsFile` | Promise<string> | Get the path to Rainmeter settings file |
+
+## Usage Examples
+
+#### Reading Options
+
+```javascript
+// Read string option
+const url = await rm.ReadString('Url', 'default');
+
+// Read integer option  
+const width = await rm.ReadInt('Width', 800);
+
+// Read double/float option
+const height = await rm.ReadDouble('Height', 600.0);
+
+// Read formula option
+const value = await rm.ReadFormula('SomeFormula', 0);
+
+// Read path option
+const path = await rm.ReadPath('FilePath', '');
+```
+
+#### Reading from Other Sections
+
+```javascript
+// Read string from another section
+const value = await rm.ReadStringFromSection('MeasureName', 'Option', 'default');
+
+// Read int from another section
+const num = await rm.ReadIntFromSection('MeasureName', 'Option', 0);
+
+// Read double from another section
+const dbl = await rm.ReadDoubleFromSection('MeasureName', 'Option', 0.0);
+
+// Read formula from another section
+const formula = await rm.ReadFormulaFromSection('MeasureName', 'Option', 0.0);
+```
+
+#### Utility Functions
+
+```javascript
+// Replace Rainmeter variables
+const replaced = await rm.ReplaceVariables('#CURRENTCONFIG#');
+
+// Convert relative path to absolute
+const absolutePath = await rm.PathToAbsolute('#@#file.txt');
+
+// Execute Rainmeter bang
+rm.Execute('[!SetVariable MyVar "Hello"]');
+
+// Log message to Rainmeter log
+rm.Log('Message from JavaScript', 'Notice'); // Levels: Notice, Warning, Error, Debug
+```
+
+#### Information Properties
+
+```javascript
+// Get measure name
+const measureName = await rm.MeasureName;
+
+// Get skin name
+const skinName = await rm.SkinName;
+
+// Get skin window handle
+const handle = await rm.SkinWindowHandle;
+
+// Get settings file path
+const settingsFile = await rm.SettingsFile;
+```
+
+### Complete Example
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rainmeter Integration</title>
+</head>
+<body>
+    <h1>Rainmeter API Demo</h1>
+    <button onclick="updateFromRainmeter()">Get Skin Info</button>
+    <div id="output"></div>
+    
+    <script>
+        async function updateFromRainmeter() {
+            try {
+                // Read values from Rainmeter
+                const width = await rm.ReadInt('Width', 800);
+                const skinName = await rm.SkinName;
+                
+                // Display results
+                document.getElementById('output').innerHTML = 
+                    `Skin: ${skinName}<br>Width: ${width}px`;
+                
+                // Log to Rainmeter
+                rm.Log('Updated from JavaScript', 'Notice');
+                
+                // Execute Rainmeter command
+                rm.Execute('[!UpdateMeter *][!Redraw]');
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+```
+
+### Notes
+
+- All read methods return Promises and should be used with `await` or `.then()`
+- Execute and Log methods are fire-and-forget (no return value)
+- Property getters (MeasureName, SkinName, etc.) also return Promises
+- The `rm` object is automatically available in all pages loaded by the plugin
+- No additional setup or imports required
+
 ## 🔧 Building from Source
 
 ### Prerequisites
