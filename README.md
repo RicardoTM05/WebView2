@@ -426,7 +426,7 @@ This project is licensed under the GPL-2.0 License - see the [LICENSE](LICENSE) 
 
 - [Rainmeter Documentation](https://docs.rainmeter.net/)
 - [WebView2 Documentation](https://docs.microsoft.com/microsoft-edge/webview2/)
-- [Example Skins](Resources/Skins/WebView2-Plugin/)
+- [Example Skins](Resources/Skins/WebView2/)
 
 ---
 
