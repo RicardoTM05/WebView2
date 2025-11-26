@@ -14,7 +14,7 @@
                 ],
     "name":  "WebView2",
     "loadType":  "Skin",
-    "load":  "WebView2\\Main.ini",
+    "load":  "WebView2\\Clock\\Clock.ini",
     "headerImage":  ".\\Resources\\banner.bmp",
     "configPrefix":  "WebView2",
     "output":  ".\\dist\\WebView2_v0.0.4_Alpha4.rmskin"
