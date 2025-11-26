@@ -85,6 +85,22 @@ LeftMouseUpAction=[!CommandMeasure MeasureWebView "ExecuteScript alert('Hello!')
 
 ;Open DevTools
 LeftMouseUpAction=[!CommandMeasure MeasureWebView "OpenDevTools"]
+
+; SetWidth
+LeftMouseUpAction=[!CommandMeasure MeasureWebView "SetWidth 500"]
+; Dynamically sets the width of the WebView2 control in pixels.
+
+; SetHeight
+LeftMouseUpAction=[!CommandMeasure MeasureWebView "SetHeight 400"]
+; Dynamically sets the height of the WebView2 control in pixels.
+
+; SetX
+LeftMouseUpAction=[!CommandMeasure MeasureWebView "SetX 100"]
+; Dynamically sets the X position of the WebView2 control relative to the skin window.
+
+;SetY
+LeftMouseUpAction=[!CommandMeasure MeasureWebView "SetY 50"]
+;Dynamically sets the Y position of the WebView2 control relative to the skin window.
 ```
 
 ## 💡 Examples  
@@ -331,29 +347,6 @@ This creates:
 - Plugin DLLs in `dist\` folder
 - Complete `.rmskin` package for distribution
 
-## 🐛 Troubleshooting
-
-### WebView2 doesn't appear
-- Ensure WebView2 Runtime is installed
-- Check Rainmeter log for error messages
-- Verify skin window has appropriate dimensions
-
-### Mouse/Keyboard events not working
-- **Fixed in v0.0.3**: Added JavaScript settings (`put_IsScriptEnabled`, `put_AreDefaultScriptDialogsEnabled`, `put_IsWebMessageEnabled`)
-- Ensure you're using the latest version
-
-### File paths not loading
-- Use `#@#` for @Resources folder: `URL=#@#mypage.html`
-- Or use absolute paths: `URL=C:\MyFolder\page.html`
-
-## 📝 Technical Details
-
-- **WebView2 SDK**: Microsoft.Web.WebView2 (v1.0.2792.45)
-- **Runtime**: Uses Windows Implementation Library (WIL)
-- **Architecture**: Supports both x86 and x64
-- **Language**: C++17
-- **User Data**: Stored in `%TEMP%\RainmeterWebView2`
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -380,4 +373,4 @@ This project is licensed under the MIT License.
 
 ---
 
-**Made with ❤️ for the Rainmeter community**
+**Made with ❤️ by nstechbytes**

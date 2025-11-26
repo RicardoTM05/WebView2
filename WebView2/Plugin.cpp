@@ -229,10 +229,105 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
             );
         }
     }
+    else if (_wcsicmp(action.c_str(), L"SetWidth") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->width = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                bounds.right = measure->x + measure->width;
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetHeight") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->height = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                bounds.bottom = measure->y + measure->height;
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetX") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->x = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetY") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->y = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
     else if (_wcsicmp(action.c_str(), L"OpenDevTools") == 0)
     {
         measure->webView->OpenDevToolsWindow();
     }
+
 }
 
 PLUGIN_EXPORT void Finalize(void* data)
