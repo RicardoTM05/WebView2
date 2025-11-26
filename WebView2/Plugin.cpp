@@ -67,30 +67,6 @@ Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr),
 // Measure destructor
 Measure::~Measure()
 {
-    // Proper cleanup sequence to prevent crashes
-    
-    // 1. Remove event handlers first
-    if (webView && webMessageToken.value != 0)
-    {
-        webView->remove_WebMessageReceived(webMessageToken);
-        webMessageToken = {};
-    }
-    
-    // 2. Close and release WebView2 controller
-    if (webViewController)
-    {
-        webViewController->Close();
-        webViewController.reset(); // Explicit release
-    }
-    
-    // 3. Release WebView COM pointer
-    if (webView)
-    {
-        webView.reset(); // Explicit release
-    }
-    
-    // 4. Brief delay to allow async cleanup
-    Sleep(100);
 }
 
 // Rainmeter Plugin Exports
@@ -155,38 +131,9 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     // Read visibility
     measure->visible = RmReadInt(rm, L"Visible", 1) != 0;
     
-    // Create WebView2 if not already created
-    if (!measure->initialized)
-    {
-        CreateWebView2(measure);
-    }
-    else
-    {
-        // Update existing WebView
-        if (measure->webView && !measure->url.empty())
-        {
-            measure->webView->Navigate(measure->url.c_str());
-        }
-        
-        // Update WebView2 bounds
-        if (measure->webViewController)
-        {
-            RECT bounds;
-            GetClientRect(measure->skinWindow, &bounds);
-            bounds.left = measure->x;
-            bounds.top = measure->y;
-            if (measure->width > 0)
-            {
-                bounds.right = measure->x + measure->width;
-            }
-            if (measure->height > 0)
-            {
-                bounds.bottom = measure->y + measure->height;
-            }
-            measure->webViewController->put_Bounds(bounds);
-            measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
-        }
-    }
+    // Always create fresh WebView2 instance on every Reload
+    // This matches the stable PluginWebView-main pattern and prevents race conditions
+    CreateWebView2(measure);
 }
 
 PLUGIN_EXPORT double Update(void* data)
