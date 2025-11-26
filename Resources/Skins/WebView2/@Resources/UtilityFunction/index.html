@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utility Functions Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Rainmeter Utility Functions</h1>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Replace Variables</span>
+                <span class="card-subtitle">RainmeterAPI.ReplaceVariables(text)</span>
+            </div>
+            <input id="replace-input" class="input" placeholder="#CURRENTCONFIG# / #DemoVariable#">
+            <div id="replace-output" class="value-display">Waiting...</div>
+            <div id="replace-status" class="status"></div>
+            <button class="btn" id="replace-btn">Replace</button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Get Variable</span>
+                <span class="card-subtitle">RainmeterAPI.GetVariable(name)</span>
+            </div>
+            <input id="variable-input" class="input" placeholder="DemoVariable">
+            <div id="variable-output" class="value-display">Waiting...</div>
+            <div id="variable-status" class="status"></div>
+            <button class="btn" id="variable-btn">Get</button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Path To Absolute</span>
+                <span class="card-subtitle">RainmeterAPI.PathToAbsolute(path)</span>
+            </div>
+            <input id="path-input" class="input" placeholder="UtilityFunction.ini">
+            <div id="path-output" class="value-display">Waiting...</div>
+            <div id="path-status" class="status"></div>
+            <button class="btn" id="path-btn">Convert</button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Bang</span>
+                <span class="card-subtitle">RainmeterAPI.Bang(command)</span>
+            </div>
+            <input id="bang-input" class="input" placeholder="!Update">
+            <div id="bang-status" class="status"></div>
+            <button class="btn" id="bang-btn">Execute</button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Log</span>
+                <span class="card-subtitle">RainmeterAPI.Log(message, level)</span>
+            </div>
+            <input id="log-input" class="input" placeholder="Hello from WebView2">
+            <select id="level-select" class="select">
+                <option>Notice</option>
+                <option>Warning</option>
+                <option>Error</option>
+                <option>Debug</option>
+            </select>
+            <div id="log-status" class="status"></div>
+            <button class="btn" id="log-btn">Log</button>
+        </div>
+    </div>
+    <button class="btn" id="demo-btn">Run Demo</button>
+    <script src="script.js"></script>
+    </body>
+</html>
