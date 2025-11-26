@@ -7,9 +7,49 @@
 // Global COM initialization tracking
 static bool g_comInitialized = false;
 
+// Global TypeLib for COM objects
+wil::com_ptr<ITypeLib> g_typeLib;
+
+// DllMain to load TypeLib from embedded resources
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+{
+    if (fdwReason == DLL_PROCESS_ATTACH)
+    {
+        // Extract TypeLib from embedded resource and load it
+        wchar_t tempPath[MAX_PATH];
+        GetTempPath(MAX_PATH, tempPath);
+        wcscat_s(tempPath, L"WebView2.tlb");
+
+        // Read embedded resource: ID = 1, Type = TYPELIB
+        HRSRC hResInfo = FindResource(hinstDLL, MAKEINTRESOURCE(1), L"TYPELIB");
+        if (hResInfo)
+        {
+            HGLOBAL hRes = LoadResource(hinstDLL, hResInfo);
+            if (hRes)  // Check if LoadResource succeeded
+            {
+                LPVOID memRes = LockResource(hRes);
+                DWORD sizeRes = SizeofResource(hinstDLL, hResInfo);
+
+                HANDLE hFile = CreateFile(tempPath, GENERIC_WRITE, 0, NULL,
+                                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (hFile != INVALID_HANDLE_VALUE)
+                {
+                    DWORD written;
+                    WriteFile(hFile, memRes, sizeRes, &written, NULL);
+                    CloseHandle(hFile);
+
+                    // Load the TypeLib
+                    LoadTypeLib(tempPath, &g_typeLib);
+                }
+            }
+        }
+    }
+    return TRUE;
+}
+
 // Measure constructor
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
-            webViewWindow(nullptr), measureName(nullptr),
+            measureName(nullptr),
             width(800), height(600), x(0), y(0), 
             visible(true), initialized(false), webMessageToken{}
 {
@@ -27,37 +67,6 @@ Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr),
 // Measure destructor
 Measure::~Measure()
 {
-    // Proper cleanup sequence to prevent crashes
-    
-    // 1. Remove event handlers first
-    if (webView && webMessageToken.value != 0)
-    {
-        webView->remove_WebMessageReceived(webMessageToken);
-        webMessageToken = {};
-    }
-    
-    // 2. Close and release WebView2 controller
-    if (webViewController)
-    {
-        webViewController->Close();
-        webViewController.reset(); // Explicit release
-    }
-    
-    // 3. Release WebView COM pointer
-    if (webView)
-    {
-        webView.reset(); // Explicit release
-    }
-    
-    // 4. Small delay to allow async cleanup
-    Sleep(50);
-    
-    // 5. Destroy window last
-    if (webViewWindow && IsWindow(webViewWindow))
-    {
-        DestroyWindow(webViewWindow);
-        webViewWindow = nullptr;
-    }
 }
 
 // Rainmeter Plugin Exports
@@ -122,39 +131,9 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     // Read visibility
     measure->visible = RmReadInt(rm, L"Visible", 1) != 0;
     
-    // Create WebView2 if not already created
-    if (!measure->initialized)
-    {
-        CreateWebView2(measure);
-    }
-    else
-    {
-        // Update existing WebView
-        if (measure->webView && !measure->url.empty())
-        {
-            measure->webView->Navigate(measure->url.c_str());
-        }
-        
-        // Update window position and size
-        if (measure->webViewWindow)
-        {
-            SetWindowPos(
-                measure->webViewWindow,
-                nullptr,
-                measure->x, measure->y,
-                measure->width, measure->height,
-                SWP_NOZORDER | SWP_NOACTIVATE
-            );
-            
-            ShowWindow(measure->webViewWindow, measure->visible ? SW_SHOW : SW_HIDE);
-            
-            // Update WebView2 controller visibility
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
-            }
-        }
-    }
+    // Always create fresh WebView2 instance on every Reload
+    // This matches the stable PluginWebView-main pattern and prevents race conditions
+    CreateWebView2(measure);
 }
 
 PLUGIN_EXPORT double Update(void* data)
@@ -217,30 +196,22 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
     }
     else if (_wcsicmp(action.c_str(), L"Show") == 0)
     {
-        if (measure->webViewWindow)
+        measure->visible = true;
+        
+        // Make WebView2 controller visible
+        if (measure->webViewController)
         {
-            ShowWindow(measure->webViewWindow, SW_SHOW);
-            measure->visible = true;
-            
-            // Also make WebView2 controller visible
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(TRUE);
-            }
+            measure->webViewController->put_IsVisible(TRUE);
         }
     }
     else if (_wcsicmp(action.c_str(), L"Hide") == 0)
     {
-        if (measure->webViewWindow)
+        measure->visible = false;
+        
+        // Hide WebView2 controller
+        if (measure->webViewController)
         {
-            ShowWindow(measure->webViewWindow, SW_HIDE);
-            measure->visible = false;
-            
-            // Also hide WebView2 controller
-            if (measure->webViewController)
-            {
-                measure->webViewController->put_IsVisible(FALSE);
-            }
+            measure->webViewController->put_IsVisible(FALSE);
         }
     }
     else if (_wcsicmp(action.c_str(), L"ExecuteScript") == 0)
@@ -258,6 +229,105 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
             );
         }
     }
+    else if (_wcsicmp(action.c_str(), L"SetWidth") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->width = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                bounds.right = measure->x + measure->width;
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetHeight") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->height = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                bounds.bottom = measure->y + measure->height;
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetX") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->x = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"SetY") == 0)
+    {
+        if (!param.empty())
+        {
+            measure->y = _wtoi(param.c_str());
+            
+            // Update WebView2 bounds
+            if (measure->webViewController)
+            {
+                RECT bounds;
+                GetClientRect(measure->skinWindow, &bounds);
+                bounds.left = measure->x;
+                bounds.top = measure->y;
+                if (measure->width > 0)
+                {
+                    bounds.right = measure->x + measure->width;
+                }
+                if (measure->height > 0)
+                {
+                    bounds.bottom = measure->y + measure->height;
+                }
+                measure->webViewController->put_Bounds(bounds);
+            }
+        }
+    }
+    else if (_wcsicmp(action.c_str(), L"OpenDevTools") == 0)
+    {
+        measure->webView->OpenDevToolsWindow();
+    }
+
 }
 
 PLUGIN_EXPORT void Finalize(void* data)

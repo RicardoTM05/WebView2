@@ -8,13 +8,15 @@
 
 using namespace Microsoft::WRL;
 
+// Global TypeLib for COM objects
+extern wil::com_ptr<ITypeLib> g_typeLib;
+
 // Measure structure containing WebView2 state
 struct Measure
 {
     void* rm;
     void* skin;
     HWND skinWindow;
-    HWND webViewWindow;
     LPCWSTR measureName;
     
     std::wstring url;
@@ -31,11 +33,12 @@ struct Measure
     
     Measure();
     ~Measure();
+    
+    // Member callback functions for WebView2 creation
+    HRESULT CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environment* env);
+    HRESULT CreateControllerHandler(HRESULT result, ICoreWebView2Controller* controller);
 };
 
 // WebView2 functions
 void CreateWebView2(Measure* measure);
-void RegisterWebViewWindowClass();
-void InjectJavaScriptBridge(Measure* measure);
-void HandleWebMessage(Measure* measure, LPCWSTR message);
-LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
