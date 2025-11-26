@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Information Properties</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Rainmeter Information Properties</h1>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Measure Name</span>
+                <span class="card-subtitle">RainmeterAPI.MeasureName</span>
+            </div>
+            <div id="measure-output" class="value-display">Waiting...</div>
+            <div id="measure-status" class="status"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Skin Name</span>
+                <span class="card-subtitle">RainmeterAPI.SkinName</span>
+            </div>
+            <div id="skin-output" class="value-display">Waiting...</div>
+            <div id="skin-status" class="status"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Skin Window Handle</span>
+                <span class="card-subtitle">RainmeterAPI.SkinWindowHandle</span>
+            </div>
+            <div id="handle-output" class="value-display">Waiting...</div>
+            <div id="handle-status" class="status"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Settings File</span>
+                <span class="card-subtitle">RainmeterAPI.SettingsFile</span>
+            </div>
+            <div id="settings-output" class="value-display">Waiting...</div>
+            <div id="settings-status" class="status"></div>
+        </div>
+    </div>
+    <button class="btn" id="refresh-btn">Refresh</button>
+    <script src="script.js"></script>
+</body>
+</html>
