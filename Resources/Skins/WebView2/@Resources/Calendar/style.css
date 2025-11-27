@@ -28,14 +28,28 @@ body {
 
 .widget-container {
     position: relative;
-    width: 210px;
-    height: 240px; /* Reduced from 320px */
+    width: 280px;
+    height: 295px; /* Match Weather height */
     display: flex;
     justify-content: center;
     align-items: center;
+    border-radius: 20px; /* Force rounded corners for entire widget */
+    overflow: hidden;    /* Clip everything to rounded shape */
 }
 
 /* Abstract Background Shapes */
+.shape-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;  /* Match card width */
+    height: 85%; /* Match card height */
+    border-radius: 14px; /* Match card border-radius */
+    overflow: hidden;
+    z-index: 0;
+}
+
 .bg-shape {
     position: absolute;
     border-radius: 50%;
@@ -72,7 +86,7 @@ body {
     position: relative;
     z-index: 1;
     width: 90%;
-    height: 90%;
+    height: 85%; /* Reduced to match Weather and prevent clipping */
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);

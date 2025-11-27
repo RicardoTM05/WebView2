@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Widget</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="widget-container">
+        <!-- Animated Background -->
+        <div class="weather-bg">
+            <div class="particle particle-1"></div>
+            <div class="particle particle-2"></div>
+            <div class="particle particle-3"></div>
+        </div>
+
+        <div class="weather-card">
+            <!-- Loading State -->
+            <div class="loading" id="loading">
+                <i class="ph ph-spinner-gap spin"></i>
+                <p>Getting weather...</p>
+            </div>
+
+            <!-- Error State -->
+            <div class="error hidden" id="error">
+                <i class="ph ph-warning-circle"></i>
+                <p id="error-message">Unable to fetch weather</p>
+            </div>
+
+            <!-- Weather Content -->
+            <div class="weather-content hidden" id="weather-content">
+                <div class="location">
+                    <i class="ph ph-map-pin"></i>
+                    <span id="city">Loading...</span>
+                </div>
+
+                <div class="main-weather">
+                    <div class="temp-section">
+                        <div class="temperature">
+                            <span id="temp">--</span>
+                            <span class="unit">°C</span>
+                        </div>
+                        <div class="weather-icon" id="weather-icon">
+                            <i class="ph ph-sun"></i>
+                        </div>
+                    </div>
+                    <div class="description" id="description">Clear Sky</div>
+                </div>
+
+                <div class="weather-details">
+                    <div class="detail-item">
+                        <i class="ph ph-drop"></i>
+                        <div class="detail-info">
+                            <span class="detail-label">Humidity</span>
+                            <span class="detail-value" id="humidity">--%</span>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <i class="ph ph-wind"></i>
+                        <div class="detail-info">
+                            <span class="detail-label">Wind</span>
+                            <span class="detail-value" id="wind">-- km/h</span>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <i class="ph ph-thermometer"></i>
+                        <div class="detail-info">
+                            <span class="detail-label">Feels Like</span>
+                            <span class="detail-value" id="feels-like">--°</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
