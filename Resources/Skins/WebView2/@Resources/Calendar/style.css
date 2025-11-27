@@ -28,8 +28,8 @@ body {
 
 .widget-container {
     position: relative;
-    width: 280px;
-    height: 320px; /* Reduced from 380px */
+    width: 210px;
+    height: 240px; /* Reduced from 320px */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -45,26 +45,26 @@ body {
 }
 
 .shape-1 {
-    width: 160px; /* Reduced from 200px */
-    height: 160px;
+    width: 120px; /* Further reduced for compact size */
+    height: 120px;
     background: #764ba2;
-    top: -15px;
-    left: -15px;
+    top: -10px;
+    left: -10px;
     animation: float 10s infinite ease-in-out;
 }
 
 .shape-2 {
-    width: 140px; /* Reduced from 180px */
-    height: 140px;
+    width: 105px; /* Further reduced for compact size */
+    height: 105px;
     background: #4facfe;
-    bottom: -15px;
-    right: -15px;
+    bottom: -10px;
+    right: -10px;
     animation: float 12s infinite ease-in-out reverse;
 }
 
 @keyframes float {
     0%, 100% { transform: translate(0, 0); }
-    50% { transform: translate(15px, 15px); } /* Reduced movement */
+    50% { transform: translate(10px, 10px); } /* Further reduced movement */
 }
 
 /* Glass Card */
@@ -77,8 +77,8 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
-    border-radius: 18px; /* Reduced from 24px */
-    padding: 15px; /* Reduced from 20px */
+    border-radius: 14px; /* Further reduced */
+    padding: 10px; /* Further reduced */
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     display: flex;
     flex-direction: column;
@@ -89,16 +89,16 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px; /* Reduced from 20px */
+    margin-bottom: 8px; /* Further reduced */
     color: var(--text-primary);
 }
 
 .month-year {
-    font-size: 0.95rem; /* Reduced from 1.2rem */
+    font-size: 0.8rem; /* Further reduced */
     font-weight: 600;
     text-transform: capitalize;
     display: flex;
-    gap: 4px; /* Reduced from 5px */
+    gap: 3px; /* Further reduced */
 }
 
 #current-year {
@@ -110,9 +110,9 @@ body {
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    font-size: 1rem; /* Reduced from 1.2rem */
+    font-size: 0.85rem; /* Further reduced */
     cursor: pointer;
-    padding: 4px; /* Reduced from 5px */
+    padding: 3px; /* Further reduced */
     border-radius: 50%;
     transition: all 0.2s ease;
     display: flex;
@@ -136,11 +136,11 @@ body {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     text-align: center;
-    margin-bottom: 6px; /* Reduced from 10px */
+    margin-bottom: 4px; /* Further reduced */
 }
 
 .weekdays span {
-    font-size: 0.7rem; /* Reduced from 0.85rem */
+    font-size: 0.6rem; /* Further reduced */
     font-weight: 500;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -149,12 +149,12 @@ body {
 .days {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 3px; /* Reduced from 5px */
+    gap: 2px; /* Further reduced */
     text-align: center;
 }
 
 .days div {
-    font-size: 0.8rem; /* Reduced from 0.95rem */
+    font-size: 0.7rem; /* Further reduced */
     color: var(--text-primary);
     width: 100%;
     aspect-ratio: 1; /* Make them square */
