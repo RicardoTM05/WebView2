@@ -114,6 +114,16 @@ void UpdateClickthrough(Measure* measure)
         // EnableWindow(FALSE) makes it ignore mouse input (Clickthrough=1)
         // EnableWindow(TRUE) makes it accept mouse input (Clickthrough=0)
         EnableWindow(child, !measure->clickthrough);
+
+        // If enabling clickthrough (disabling input), ensure it loses focus
+        if (measure->clickthrough)
+        {
+            HWND focusedWindow = GetFocus();
+            if (focusedWindow && (focusedWindow == child || IsChild(child, focusedWindow)))
+            {
+                SetFocus(nullptr);
+            }
+        }
         
         child = GetWindow(child, GW_HWNDNEXT);
     }
