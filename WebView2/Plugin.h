@@ -29,7 +29,10 @@ struct Measure
     bool visible;
     bool initialized;
     bool clickthrough;
-    
+    bool isCreationInProgress = false;
+    std::wstring onFinishAction;
+    std::wstring onPageLoadAction;
+
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
     EventRegistrationToken webMessageToken;
