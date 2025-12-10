@@ -30,8 +30,13 @@ struct Measure
     bool initialized;
     bool clickthrough;
     bool isCreationInProgress = false;
-    std::wstring onFinishAction;
+	bool raincontext;
+    std::wstring OnWebViewLoadAction;
+    std::wstring OnWebViewFailAction;
+    std::wstring onPageFirstLoadAction;
     std::wstring onPageLoadAction;
+    std::wstring onPageReloadAction;
+    bool isFirstLoad = true;
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -52,4 +57,5 @@ struct Measure
 // WebView2 functions
 void CreateWebView2(Measure* measure);
 void UpdateClickthrough(Measure* measure);
+void UpdateRaincontext(Measure* measure);
 
