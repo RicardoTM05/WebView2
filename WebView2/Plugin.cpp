@@ -52,7 +52,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
             measureName(nullptr),
             width(800), height(600), x(0), y(0), 
-            visible(true), initialized(false), clickthrough(false), webMessageToken{}
+            visible(true), initialized(false), clickthrough(false), raincontext(true), webMessageToken{}
 {
     // Initialize COM for this thread if not already done
     if (!g_comInitialized)
@@ -129,6 +129,35 @@ void UpdateClickthrough(Measure* measure)
     }
 }
 
+void UpdateRaincontext(Measure* measure)
+{
+	if (!measure->webView) return;
+
+	if (measure->raincontext)
+	{
+		measure->webView->ExecuteScript(
+			L"rm_setRaincontext(true);",
+			Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+				[measure](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+				{
+					return S_OK;
+				}
+			).Get()
+		);
+	}
+	else {
+		measure->webView->ExecuteScript(
+			L"rm_setRaincontext(false);",
+			Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+				[measure](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+				{
+					return S_OK;
+				}
+			).Get()
+		);
+	}
+}
+
 PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
 {
     Measure* measure = (Measure*)data;
@@ -182,24 +211,49 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     int newHeight = RmReadInt(rm, L"H", 600);
     int newX = RmReadInt(rm, L"X", 0);
     int newY = RmReadInt(rm, L"Y", 0);
-    bool newVisible = RmReadInt(rm, L"Hidden", 0) == 0;
-    bool newClickthrough = RmReadInt(rm, L"Clickthrough", 0) != 0;
+    bool newVisible = RmReadInt(rm, L"Hidden", 0) <= 0;
+   	bool newClickthrough = RmReadInt(rm, L"Clickthrough", 0) >= 1;
+    bool newRaincontext = RmReadInt(rm, L"Raincontext", 1) >= 1;
     
-    // Read OnFinishAction
-    std::wstring newOnFinishAction;
-    LPCWSTR onFinishOption = RmReadString(rm, L"OnFinishAction", L"", FALSE);
-    if (onFinishOption && wcslen(onFinishOption) > 0)
-    {
-        newOnFinishAction = onFinishOption;
-    }
+	// Read OnWebViewLoadAction
+	std::wstring newOnWebViewLoadAction;
+	LPCWSTR onWebViewLoadOption = RmReadString(rm, L"OnWebViewLoadAction", L"", FALSE);
+	if (onWebViewLoadOption && wcslen(onWebViewLoadOption) > 0)
+	{
+		newOnWebViewLoadAction = onWebViewLoadOption;
+	}
+    
+	// Read OnWebViewFailAction
+	std::wstring newOnWebViewFailAction;
+	LPCWSTR onWebViewFailOption = RmReadString(rm, L"OnWebViewFailAction", L"", FALSE);
+	if (onWebViewFailOption && wcslen(onWebViewFailOption) > 0)
+	{
+		newOnWebViewFailAction = onWebViewFailOption;
+	}
 
-    // Read OnPageLoadAction
-    std::wstring newOnPageLoadAction;
-    LPCWSTR onPageLoadOption = RmReadString(rm, L"OnPageLoadAction", L"", FALSE);
-    if (onPageLoadOption && wcslen(onPageLoadOption) > 0)
-    {
-        newOnPageLoadAction = onPageLoadOption;
-    }
+	// Read OnPageFirstLoadAction
+	std::wstring newOnPageFirstLoadAction;
+	LPCWSTR onPageFirstLoadOption = RmReadString(rm, L"OnPageFirstLoadAction", L"", FALSE);
+	if (onPageFirstLoadOption && wcslen(onPageFirstLoadOption) > 0)
+	{
+		newOnPageFirstLoadAction = onPageFirstLoadOption;
+	}
+
+	// Read OnPageLoadAction
+	std::wstring newOnPageLoadAction;
+	LPCWSTR onPageLoadOption = RmReadString(rm, L"OnPageLoadAction", L"", FALSE);
+	if (onPageLoadOption && wcslen(onPageLoadOption) > 0)
+	{
+		newOnPageLoadAction = onPageLoadOption;
+	}
+
+	// Read OnPageReloadAction
+	std::wstring newOnPageReloadAction;
+	LPCWSTR onPageReloadOption = RmReadString(rm, L"OnPageReloadAction", L"", FALSE);
+	if (onPageReloadOption && wcslen(onPageReloadOption) > 0)
+	{
+		newOnPageReloadAction = onPageReloadOption;
+	}
 
     // Check if URL has changed (requires recreation)
     bool urlChanged = (newUrl != measure->url);
@@ -213,7 +267,8 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     
     bool visibilityChanged = (newVisible != measure->visible);
     bool clickthroughChanged = (newClickthrough != measure->clickthrough);
-    
+   	bool raincontextChanged = (newRaincontext != measure->raincontext);
+
     // Update stored values
     measure->url = newUrl;
     measure->width = newWidth;
@@ -222,8 +277,12 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     measure->y = newY;
     measure->visible = newVisible;
     measure->clickthrough = newClickthrough;
-    measure->onFinishAction = newOnFinishAction;
-    measure->onPageLoadAction = newOnPageLoadAction;
+	measure->raincontext = newRaincontext;
+	measure->OnWebViewLoadAction = newOnWebViewLoadAction;
+	measure->OnWebViewFailAction = newOnWebViewFailAction;
+	measure->onPageFirstLoadAction = newOnPageFirstLoadAction;
+	measure->onPageLoadAction = newOnPageLoadAction;
+	measure->onPageReloadAction = newOnPageReloadAction;
 
     // Only create WebView2 if not initialized OR if URL changed
     if (!measure->initialized || urlChanged)
@@ -245,7 +304,6 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
                 return;
             }
             CreateWebView2(measure);
-
         }
     }
     else
@@ -271,6 +329,11 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
         {
             UpdateClickthrough(measure);
         }
+
+        if (raincontextChanged)
+		{
+			UpdateRaincontext(measure);
+		}
     }
 }
 
@@ -300,7 +363,6 @@ PLUGIN_EXPORT double Update(void* data)
                         {
                             measure->callbackResult = result;
                         }
-                        
                     }
                     return S_OK;
                 }
