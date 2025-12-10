@@ -45,13 +45,17 @@ void CreateWebView2(Measure* measure)
     
     if (FAILED(hr))
     {
-        measure->isCreationInProgress = false;
         if (measure->rm)
         {
             wchar_t errorMsg[512];
             swprintf_s(errorMsg, L"WebView2: Failed to start creation process (HRESULT: 0x%08X). Make sure WebView2 Runtime is installed.", hr);
             RmLog(measure->rm, LOG_ERROR, errorMsg);
         }
+        if (measure->skin && wcslen(measure->OnWebViewFailAction.c_str()) > 0)
+		{
+				RmExecute(measure->skin, measure->OnWebViewFailAction.c_str());
+		}
+        measure->isCreationInProgress = false;
     }
 }
 
@@ -60,13 +64,17 @@ HRESULT Measure::CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environme
 {
     if (FAILED(result))
     {
-        isCreationInProgress = false;
         if (rm)
         {
             wchar_t errorMsg[256];
             swprintf_s(errorMsg, L"WebView2: Failed to create environment (HRESULT: 0x%08X)", result);
             RmLog(rm, LOG_ERROR, errorMsg);
         }
+		if (skin && wcslen(OnWebViewFailAction.c_str()) > 0)
+		{
+			RmExecute(skin, OnWebViewFailAction.c_str());
+		}
+        isCreationInProgress = false;
         return result;
     }
     
@@ -94,6 +102,10 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
             swprintf_s(errorMsg, L"WebView2: Failed to create controller (HRESULT: 0x%08X)", result);
             RmLog(rm, LOG_ERROR, errorMsg);
         }
+		if (skin && wcslen(OnWebViewFailAction.c_str()) > 0)
+		{
+			RmExecute(skin, OnWebViewFailAction.c_str());
+		}
         isCreationInProgress = false;
         return result;
     }
@@ -102,6 +114,10 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
     {
         if (rm)
             RmLog(rm, LOG_ERROR, L"WebView2: Controller is null");
+        if (skin && wcslen(OnWebViewFailAction.c_str()) > 0)
+		{
+			RmExecute(skin, OnWebViewFailAction.c_str());
+		}
         isCreationInProgress = false;
         return S_FALSE;
     }
@@ -166,6 +182,20 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
         Callback<ICoreWebView2NavigationCompletedEventHandler>(
             [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT
             {
+                // Inject script to capture page load events for drag/move and context menu
+				webView->ExecuteScript(
+					L"let rm_raincontext=false,rm_RaincontextOn=false,rm_RaincontextClientX=0,rm_RaincontextClientY=0;function rm_setRaincontext(v){rm_raincontext=!!v;if(!rm_raincontext)rm_RaincontextOn=false;}document.body.onpointerdown=e=>{if(!rm_raincontext)return;if(e.button===0&&e.ctrlKey){e.preventDefault();e.stopImmediatePropagation();rm_RaincontextOn=true;rm_RaincontextClientX=e.clientX;rm_RaincontextClientY=e.clientY;try{document.body.setPointerCapture(e.pointerId);}catch{}}};document.body.onpointermove=e=>{if(!rm_raincontext||!rm_RaincontextOn)return;e.preventDefault();RainmeterAPI.Bang('[!Move '+(e.screenX-RainmeterAPI.ReadFormula('X',0)-rm_RaincontextClientX)+' '+(e.screenY-RainmeterAPI.ReadFormula('Y',0)-rm_RaincontextClientY)+']');};document.body.onpointerup=e=>{if(!rm_raincontext)return;if(e.button===0){e.preventDefault();rm_RaincontextOn=false;try{document.body.releasePointerCapture(e.pointerId);}catch{}}};document.body.oncontextmenu=e=>{if(!rm_raincontext)return;if(e.button===2&&e.ctrlKey){e.preventDefault();RainmeterAPI.Bang('[!SkinMenu]');}};",
+					Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+						[this](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+						{
+							return S_OK;
+						}
+					).Get()
+				);
+
+				// Apply initial raincontext state
+				UpdateRaincontext(this);
+                
                 // Call JavaScript OnInitialize callback if it exists and capture return value
                 webView->ExecuteScript(
                     L"(function() { if (typeof window.OnInitialize === 'function') { var result = window.OnInitialize(); return result !== undefined ? String(result) : ''; } return ''; })();",
@@ -188,10 +218,28 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
                                 }
                             }
 
-                            if (wcslen(onPageLoadAction.c_str()) > 0)
-                            {
-                                RmExecute(skin, onPageLoadAction.c_str());
-                            }
+							if (isFirstLoad)
+							{
+								if (wcslen(onPageFirstLoadAction.c_str()) > 0)
+								{
+									if (skin)
+										RmExecute(skin, onPageFirstLoadAction.c_str());
+								}
+								isFirstLoad = false;
+							}
+							else {
+								if (wcslen(onPageReloadAction.c_str()) > 0)
+								{
+									if (skin)
+										RmExecute(skin, onPageReloadAction.c_str());
+								}
+							}
+
+							if (wcslen(onPageLoadAction.c_str()) > 0)
+							{
+								if (skin)
+									RmExecute(skin, onPageLoadAction.c_str());
+							}
 
                             return S_OK;
                         }
@@ -214,16 +262,15 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
     isCreationInProgress = false;
 
     if (rm)
-        RmLog(rm, LOG_DEBUG, L"WebView2: Initialized successfully with COM Host Objects");
+        RmLog(rm, LOG_NOTICE, L"WebView2: Initialized successfully with COM Host Objects");
     
-    if (wcslen(onFinishAction.c_str()) > 0)
-    {
-        RmExecute(skin, onFinishAction.c_str());
-    }
+	if (wcslen(OnWebViewLoadAction.c_str()) > 0)
+	{
+		RmExecute(skin, OnWebViewLoadAction.c_str());
+	}
 
     // Apply initial clickthrough state
     UpdateClickthrough(this);
     
     return S_OK;
 }
-
