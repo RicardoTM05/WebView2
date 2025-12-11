@@ -22,6 +22,7 @@ struct Measure
     LPCWSTR measureName;
     
     std::wstring url;
+    std::wstring currentUrl;
     int width;
     int height;
     int x;
