@@ -51,7 +51,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 // Measure constructor
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr), 
             measureName(nullptr),
-            width(800), height(600), x(0), y(0), 
+            width(800), height(600), x(0), y(0), zoomFactor(1.0),
             visible(true), initialized(false), clickthrough(false), allowDualControl(true), webMessageToken{}
 {
     // Initialize COM for this thread if not already done
@@ -230,6 +230,7 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     int newHeight = RmReadInt(rm, L"H", 600);
     int newX = RmReadInt(rm, L"X", 0);
     int newY = RmReadInt(rm, L"Y", 0);
+	double newZoomFactor = RmReadFormula(rm, L"ZoomFactor", 1.0);
     bool newVisible = RmReadInt(rm, L"Hidden", 0) <= 0;
    	bool newClickthrough = RmReadInt(rm, L"Clickthrough", 0) >= 1;
 	
@@ -304,13 +305,15 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
     bool visibilityChanged = (newVisible != measure->visible);
     bool clickthroughChanged = (newClickthrough != measure->clickthrough);
 	bool allowDualControlChanged = (newAllowDualControl != measure->allowDualControl);
-
+	bool zoomFactorChanged = (newZoomFactor != measure->zoomFactor);
+	
     // Update stored values
     measure->url = newUrl;
     measure->width = newWidth;
     measure->height = newHeight;
     measure->x = newX;
     measure->y = newY;
+	measure->zoomFactor = newZoomFactor;
     measure->visible = newVisible;
     measure->clickthrough = newClickthrough;
 	measure->allowDualControl = newAllowDualControl;
@@ -362,6 +365,11 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
         {
             measure->webViewController->put_IsVisible(measure->visible ? TRUE : FALSE);
         }
+		
+        if (zoomFactorChanged && measure->webViewController)
+        {
+            measure->webViewController->put_ZoomFactor(measure->zoomFactor);
+		}
         
         if (clickthroughChanged)
         {
