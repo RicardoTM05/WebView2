@@ -460,6 +460,10 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
             measure->webView->Navigate(param.c_str());
         }
     }
+    else if (_wcsicmp(action.c_str(), L"Stop") == 0)
+    {
+        measure->webView->Stop();
+    }
     else if (_wcsicmp(action.c_str(), L"Reload") == 0)
     {
         measure->webView->Reload();

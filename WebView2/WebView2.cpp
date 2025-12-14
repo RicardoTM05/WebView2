@@ -164,6 +164,7 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
     settings->put_AreDevToolsEnabled(TRUE);
     settings->put_AreDefaultContextMenusEnabled(TRUE);
     
+
     // Create and inject COM Host Object for Rainmeter API
     wil::com_ptr<HostObjectRmAPI> hostObject = 
         Microsoft::WRL::Make<HostObjectRmAPI>(this, g_typeLib);
