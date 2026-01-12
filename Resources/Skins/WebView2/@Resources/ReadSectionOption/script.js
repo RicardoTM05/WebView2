@@ -12,7 +12,7 @@ async function refreshValues() {
 
     // 3. Read Measure Int (Int)
     updateField('measure-int', async () => {
-        const val = await RainmeterAPI.ReadIntFromSection('MeasureCalc', 'Formula', 0); 
+        const val = await RainmeterAPI.ReplaceVariables('[MeasureCalc]'); 
         return val;
     });
 

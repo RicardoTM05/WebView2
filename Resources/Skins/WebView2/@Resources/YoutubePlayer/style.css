@@ -1,0 +1,372 @@
+/* ============================================================================
+   Root variables
+============================================================================ */
+:root {
+    /* =====================
+       Colors
+    ===================== */
+    --bg-color: #0f0f0f;
+    --bg-hover: #272727;
+
+    --accent-danger: #ff0000;
+    --yt-red: #fe0f38;
+
+    --text-primary: #ffffff;
+    --text-secondary: #868685;
+
+    --text-button-primary: #868685;
+    --text-button-secondary: #ffffff;
+
+    --icon-primary: #ffffff;
+    --icon-on-accent: #ffffff;
+
+    --border-muted: rgba(125, 125, 125, 0.2);
+    --border-focus: rgba(255, 255, 255, 0.1);
+
+    --shadow-focus: rgba(255, 255, 255, 0.15);
+    --soft-shadow: rgba(0, 0, 0, 0.28);
+    --yt-glow: rgba(255, 255, 255, 0.25);
+
+    /* =====================
+       Typography
+    ===================== */
+    --font-family: 'Outfit', sans-serif;
+    --font-size-xs: 13px;
+    --font-size-sm: 14px;
+
+    /* =====================
+       Spacing
+    ===================== */
+    --space-xs: 8px;
+    --space-sm: 10px;
+    --space-md: 12px;
+
+    /* =====================
+       Layout sizes
+    ===================== */
+    --header-height: 45px;
+    --footer-height: 50px;
+    --control-size: 30px;
+	--input-size: 30px;
+	--icon-size: 18px;
+
+    /* =====================
+       UI behavior
+    ===================== */
+    --radius-sm: 15px;
+    --transition-fast: 0.15s ease;
+}
+
+/* ============================================================================
+   Light theme override
+============================================================================ */
+:root[data-theme="light"] {
+    --bg-color: #ffffff;
+    --bg-hover: #f2f2f2;
+
+    --text-primary: #111111;
+    --text-secondary: #444444;
+
+    --text-button-primary: #111111;
+
+    --accent-danger: #cc0000;
+    --yt-red: #e60023;
+    --yt-glow: rgba(125, 125, 125, 0.35);
+
+    --icon-primary: #111111;
+    --icon-on-accent: #ffffff;
+
+    --border-muted: rgba(0, 0, 0, 0.15);
+    --border-focus: rgba(0, 0, 0, 0.25);
+    --shadow-focus: rgba(0, 0, 0, 0.15);
+    --soft-shadow: rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================================================
+   Reset & base styles
+============================================================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+	transition:
+		background-color var(--transition-fast),
+		color var(--transition-fast),
+		border-color var(--transition-fast),
+		box-shadow var(--transition-fast);
+}
+
+body {
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-family: var(--font-family);
+    user-select: none;
+}
+
+/* ============================================================================
+   Layout containers
+============================================================================ */
+.widget-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 100%;
+}
+
+.head,
+.foot {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Header (draggable region)
+--------------------------------------------------------------------------- */
+.head {
+    app-region: drag; /* Rainmeter / WebView2 drag region */
+    height: var(--header-height);
+    padding: var(--space-sm);
+}
+
+.title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+
+    display: flex;
+    justify-content: center;
+    user-select: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Footer
+--------------------------------------------------------------------------- */
+.foot {
+    height: var(--footer-height);
+    padding: var(--space-md);
+}
+
+/* ============================================================================
+   Title & branding
+============================================================================ */
+/* Player title text */
+h5 {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+    padding-left: var(--space-xs);
+    user-select: none;
+}
+
+/* YouTube logo container */
+.yt-logo {
+    width: 93px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* SVG scaling */
+.yt-logo svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* SVG theming */
+.yt-logo .yt-bg   { fill: var(--yt-red); }
+.yt-logo .yt-play { fill: var(--icon-on-accent); }
+.yt-logo .yt-text path { fill: var(--icon-primary); }
+
+/* Subtle glow on hover */
+.title:hover {
+    filter: drop-shadow(0 0 3px var(--yt-glow));
+}
+
+/* ============================================================================
+   Window controls (maximize / exit / theme)
+============================================================================ */
+.window-controls {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    app-region: no-drag;
+}
+
+/* Shared button styles */
+.exit,
+.maximize,
+.theme-toggle {
+    width: var(--control-size);
+    height: var(--control-size);
+
+	font-size: var(--font-size-xs);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+
+    app-region: no-drag;
+    transition: background-color var(--transition-fast),
+                color var(--transition-fast);
+}
+
+/* Hover states */
+.exit:hover {
+    background-color: var(--bg-hover);
+    color: var(--accent-danger);
+}
+
+.maximize:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .moon {
+  display: none;
+}
+
+[data-theme="dark"] .sun {
+  display: none;
+}
+
+.icon {
+  display: inline-flex;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+/* ============================================================================
+   Player container
+============================================================================ */
+.player {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+
+    padding: 1px;
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-sm);
+}
+
+/* Disable iframe interaction while resizing */
+.player.no-pointer {
+    pointer-events: none;
+}
+
+/* ============================================================================
+   Form elements
+============================================================================ */
+input, .load-button {
+
+	display: flex;
+    align-items: center;
+    justify-content: center;
+	
+    height: var(--input-size);
+	padding: var(--space-sm);
+	
+	font-size: var(--font-size-sm);
+    font-weight: 600;
+
+    border-radius: var(--radius-sm);
+	
+    color: var(--text-secondary);
+}
+
+input {
+    width: 90%;
+
+    background-color: var(--bg-color);
+    outline: none;
+
+    box-shadow: inset 0 2px 8px var(--soft-shadow);
+    app-region: no-drag;
+
+    border: 1px solid var(--border-muted);
+
+    transition: border-color var(--transition-fast),
+                box-shadow var(--transition-fast);
+}
+
+input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 4px var(--shadow-focus);
+}
+
+.load-button {
+    flex: 1;
+    margin-left: var(--space-md);
+
+    background-color: var(--bg-hover);
+    border: none;
+
+    cursor: pointer;
+    user-select: none;
+
+    transition: background-color var(--transition-fast),
+                transform var(--transition-fast);
+}
+
+.load-button:hover,
+.theme-toggle:hover {
+    background-color: var(--yt-red);
+    color: var(--text-button-secondary);
+}
+
+.load-button:active,
+.theme-toggle:active {
+    transform: scale(0.98);
+}
+
+/* ============================================================================
+   Resize handles (used by JS resizing logic)
+============================================================================ */
+#box {
+    position: relative;
+    border: 2px solid transparent;
+}
+
+/* Invisible resize hit areas */
+.handle {
+    position: absolute;
+    background: transparent;
+	app-region: no-drag;
+}
+
+.right {
+    right: -5px;
+    top: 0;
+    width: 10px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.bottom {
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    cursor: ns-resize;
+}
+
+.corner {
+    right: -5px;
+    bottom: -5px;
+    width: 15px;
+    height: 15px;
+    cursor: nwse-resize;
+}

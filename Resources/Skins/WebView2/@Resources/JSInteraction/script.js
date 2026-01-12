@@ -3,7 +3,7 @@ let updateCount = 0;
 // Called once when the plugin is ready
 window.OnInitialize = function() {
     log("🚀 OnInitialize called!");
-    return "Initialized!";
+	RainmeterAPI.Bang(`[!SetOption MeterStatus Text "Status: 🚀 OnInitialize called!"][!UpdateMeter MeterStatus][!Redraw]`)
 };
 
 // Called on every Rainmeter update cycle
@@ -17,8 +17,8 @@ window.OnUpdate = function() {
         display.textContent = message;
     }
     
-    // Return value updates the measure's string value in Rainmeter
-    return message;
+	RainmeterAPI.Bang(`[!SetOption MeterStatus Text "Status: ${message}"][!UpdateMeter MeterStatus][!Redraw]`)
+	
 };
 
 // Function callable from Rainmeter via [Measure:CallJS('addNumbers', 'a', 'b')]

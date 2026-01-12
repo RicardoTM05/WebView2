@@ -1,6 +1,6 @@
 // Weather Widget Script
 const API_KEY = 'd87d34d2cddf097a3710c1627a0d024d'; // Users can get free API key from openweathermap.org
-const USE_GEOLOCATION = false; // Set to true to use browser geolocation (may not work in WebView2)
+const USE_GEOLOCATION = false; // Set to true to use browser geolocation (requires windows location to be enabled)
 
 // Manual coordinates - UPDATE THESE TO YOUR LOCATION
 const MANUAL_LAT = 29.712885630493965; 

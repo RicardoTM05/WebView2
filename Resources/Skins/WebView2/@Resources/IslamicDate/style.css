@@ -1,11 +1,11 @@
 :root {
     --bg-color: #0f0f13;
     --text-primary: #ffffff;
-    --text-secondary: #a0a0a0;
+    --text-secondary: #ebebeb;
     --accent-purple: #764ba2;
     --accent-blue: #4facfe;
     --accent-cyan: #00f2fe;
-    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-bg: rgba(0, 0, 0, 0.25);
     --glass-border: rgba(255, 255, 255, 0.1);
 }
 
@@ -110,7 +110,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    box-shadow: 0 8px 12px 0 rgba(0, 0, 0, 0.37);
 }
 
 /* Content Wrapper - Centered Layout */
