@@ -2,12 +2,13 @@
 #pragma once
 
 #include <Windows.h>
+#include <WebView2.h>
+#include "SimpleIni.h"
+#include <wil/com.h>
+#include <wrl.h>
 #include <string>
 #include <vector>
 #include <map>
-#include <wrl.h>
-#include <wil/com.h>
-#include <WebView2.h>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -56,15 +57,14 @@ struct Measure
 	int height;
 	int x;
 	int y;
-	int skinControl = 1;
-	int contextMenu = 1;
+	int clickthrough = 1;
 	double zoomFactor = 1.0;
 	bool disabled = false;
 	bool autoStart = true;
 	bool visible = true;
 	bool initialized = false;
 	bool isFirstLoad = true;
-	bool isSkinControlActive = false;
+	bool isClickthroughActive = false;
 	bool notifications = false;
 	bool zoomControl = true;
 	bool newWindow = false;
@@ -88,6 +88,9 @@ struct Measure
 	std::wstring onPageDOMLoadAction;
 	std::wstring onPageLoadFinishAction;
 	std::wstring onPageReloadAction;
+
+	CSimpleIniW ini;
+	bool iniDirty = false;
 
 	wil::com_ptr<ICoreWebView2Environment> webViewEnvironment;
 	wil::com_ptr<ICoreWebView2Controller> webViewController;

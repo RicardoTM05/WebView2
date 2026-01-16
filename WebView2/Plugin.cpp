@@ -158,7 +158,7 @@ void UpdateWindowBounds(Measure* measure)
 
 void UpdateChildWindowState(Measure* measure, bool enabled, bool shouldDefocus)
 {
-	if (!measure->skinWindow || !IsWindow(measure->skinWindow))
+	if (!measure || measure->isStopping || !measure->skinWindow || !IsWindow(measure->skinWindow))
 		return;
 
 	for (HWND child = GetWindow(measure->skinWindow, GW_CHILD);
@@ -233,37 +233,16 @@ LRESULT CALLBACK SkinSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			measure->isCtrlPressed = isCtrlPressed;
 			
-			if (measure->skinControl <= 1)
+			if (measure->clickthrough <= 1)
 				continue;
 
-			if (measure->skinControl == 2) // Hold ctrl to enable SkinControl
+			if (measure->clickthrough >= 2)
 			{
-				if (!measure->isSkinControlActive && isCtrlPressed)
+				if (measure->isClickthroughActive != isCtrlPressed)
 				{
-					measure->isSkinControlActive = true;
-					UpdateChildWindowState(measure, false, false);
-					//RmLog(measure->rm, LOG_DEBUG, L"Plugin: Ctrl was pressed");
-				}
-				else if (measure->isSkinControlActive && !isCtrlPressed)
-				{
-					measure->isSkinControlActive = false;
-					UpdateChildWindowState(measure, true, false);
-					//RmLog(measure->rm, LOG_DEBUG, L"Plugin: Ctrl was released");
-				}
-			}
-			else if (measure->skinControl >= 3)
-			{
-				if (!measure->isSkinControlActive && isCtrlPressed)
-				{
-					measure->isSkinControlActive = true;
-					UpdateChildWindowState(measure, true, false);
-					//RmLog(measure->rm, LOG_DEBUG, L"Plugin: Ctrl was pressed");
-				}
-				else if (measure->isSkinControlActive && !isCtrlPressed)
-				{
-					measure->isSkinControlActive = false;
-					UpdateChildWindowState(measure, false, false);
-					//RmLog(measure->rm, LOG_DEBUG, L"Plugin: Ctrl was released");
+					measure->isClickthroughActive = isCtrlPressed;
+
+					UpdateChildWindowState(measure, !isCtrlPressed, false); // Enable clickthrough if ctrl is pressed
 				}
 			}
 		}
@@ -279,6 +258,7 @@ LRESULT CALLBACK SkinSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			}
 		}
 		break;
+	case WM_DESTROY:
 	case WM_NCDESTROY:
 		RemoveWindowSubclass(hWnd, SkinSubclassProc, uIdSubclass);
 		break;
@@ -360,11 +340,6 @@ void RemoveKeyboardHook()
 		UnhookWindowsHookEx(g_kbHook);
 		g_kbHook = nullptr;
 	}
-	if (g_hModule)
-	{
-		FreeLibrary(g_hModule);
-		g_hModule = nullptr;
-	}
 }
 
 // Rainmeter Plugin Exports
@@ -375,12 +350,11 @@ PLUGIN_EXPORT void Initialize(void** data, void* rm)
 
 	if (g_refCount++ == 0)
 	{
-		//RmLog(measure->rm, LOG_DEBUG, (L"WebView2: Starting keyboard hook. Current global refCount: " + std::to_wstring(g_refCount)).c_str());
 		InstallKeyboardHook();
 	}
-	else {
-		//RmLog(measure->rm, LOG_DEBUG, (L"WebView2: Current global refCount: " + std::to_wstring(g_refCount)).c_str());
-	}
+
+	bool ctrlDown = g_ctrlDown.load(std::memory_order_relaxed);
+	measure->isCtrlPressed = ctrlDown;
 
 	measure->rm = rm;
 	measure->skin = RmGetSkin(rm);
@@ -492,8 +466,7 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* /*maxValue*/)
 	const int    newHeight = RmReadInt(rm, L"H", 600);
 	const int    newX = RmReadInt(rm, L"X", 0);
 	const int    newY = RmReadInt(rm, L"Y", 0);
-	const int	 newSkinControl = RmReadInt(rm, L"SkinControl", 2);
-	const int	 newContextMenu = RmReadInt(rm, L"ContextMenu", 1);
+	const int	 newClickthrough = RmReadInt(rm, L"Clickthrough", 2);
 	const double newZoomFactor = RmReadFormula(rm, L"ZoomFactor", 1.0);
 	const bool	 newVisible = RmReadInt(rm, L"Hidden", 0) <= 0;
 	const bool	 newNotifications = RmReadInt(rm, L"Notifications", 0) >= 1;
@@ -585,7 +558,7 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* /*maxValue*/)
 	const bool zoomFactorChanged = (newZoomFactor != measure->zoomFactor);
 	const bool zoomControlChanged = (newZoomControl != measure->zoomControl);
 	const bool userAgentChanged = (newUserAgent != measure->userAgent);
-	const bool skinControlChanged = (newSkinControl != measure->skinControl);
+	const bool clickthroughChanged = (newClickthrough != measure->clickthrough);
 	const bool hostChanged = (newHostPath != measure->hostPath || newHostSecurity != measure->hostSecurity || newHostOrigin != measure->hostOrigin);
 
 	// Options
@@ -597,10 +570,9 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* /*maxValue*/)
 	measure->zoomFactor = newZoomFactor;
 	measure->zoomControl = newZoomControl;
 	measure->visible = newVisible;
-	measure->skinControl = newSkinControl;
+	measure->clickthrough = newClickthrough;
 	measure->notifications = newNotifications;
 	measure->newWindow = newNewWindow;
-	measure->contextMenu = newContextMenu;
 	measure->hostPath = newHostPath;
 	measure->userAgent = newUserAgent;
 	measure->assistiveFeatures = newAssistiveFeatures;
@@ -633,14 +605,14 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* /*maxValue*/)
 	}
 
 	// Dynamic updates
-	if (skinControlChanged)
+	if (clickthroughChanged)
 	{
-		measure->isSkinControlActive = false;
-		if (measure->skinControl <= 0 || measure->skinControl == 2)
+		measure->isClickthroughActive = false;
+		if (measure->clickthrough <= 0 || measure->clickthrough == 2)
 		{
 			UpdateChildWindowState(measure, true);
 		}
-		else if (measure->skinControl == 1 || measure->skinControl >= 3)
+		else if (measure->clickthrough == 1)
 		{
 			UpdateChildWindowState(measure, false);
 		}
@@ -978,7 +950,7 @@ PLUGIN_EXPORT void Finalize(void* data)
 	}
 
 	// Stop WebView2 and clean up
-	StopWebView2(measure);
+	if (measure->initialized) StopWebView2(measure);
 
 	g_refCount--;
 
@@ -987,6 +959,6 @@ PLUGIN_EXPORT void Finalize(void* data)
 	{
 		RemoveKeyboardHook();
 	}
-
+	
 	delete measure;
 }

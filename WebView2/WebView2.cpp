@@ -3,33 +3,40 @@
 #include "HostObjectRmAPI.h"
 #include "../API/RainmeterAPI.h"
 #include <WebView2EnvironmentOptions.h>
-#include "SimpleIni.h"
 
-CSimpleIniW ini;
+inline bool ParseBool(const wchar_t* value)
+{
+	if (!value) return false;
 
-auto getIniString = [&](const wchar_t* section,
-	const wchar_t* key,
-	const wchar_t* def)
+	return _wcsicmp(value, L"true") == 0 ||
+		_wcsicmp(value, L"1") == 0 ||
+		_wcsicmp(value, L"yes") == 0 ||
+		_wcsicmp(value, L"on") == 0;
+}
+
+inline bool GetIniBool(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, bool def)
+{
+	const wchar_t* value = ini.GetValue(section, key, nullptr);
+	if (!value)
 	{
-		const wchar_t* value = ini.GetValue(section, key, def);
-		ini.SetValue(section, key, value);
-		return value;
-	};
+		ini.SetValue(section, key, def ? L"true" : L"false");
+		dirty = true;
+		return def;
+	}
+	return ParseBool(value);
+}
 
-auto getIniBool = [&](const wchar_t* section,
-	const wchar_t* key,
-	bool def)
+inline std::wstring GetIniString(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, const wchar_t* def)
+{
+	const wchar_t* value = ini.GetValue(section, key, nullptr);
+	if (!value)
 	{
-		const wchar_t* defStr = def ? L"true" : L"false";
-		const wchar_t* value = ini.GetValue(section, key, defStr);
-
-		ini.SetValue(section, key, value);
-
-		return (_wcsicmp(value, L"true") == 0 ||
-			_wcsicmp(value, L"1") == 0 ||
-			_wcsicmp(value, L"yes") == 0 ||
-			_wcsicmp(value, L"on") == 0);
-	};
+		ini.SetValue(section, key, def);
+		dirty = true;
+		return def;
+	}
+	return value;
+}
 
 // Create WebView2 environment and controller
 void CreateWebView2(Measure* measure)
@@ -56,28 +63,32 @@ void CreateWebView2(Measure* measure)
 	measure->isCreationInProgress = true;
 
 	// Load or create config.ini
-	ini.SetUnicode();
-	ini.LoadFile(measure->configPath.c_str());
+	measure->ini.SetUnicode();
+	measure->ini.LoadFile(measure->configPath.c_str());
+	measure->iniDirty = false;
 
 	// Read environment options from config.ini
-	bool extensions = getIniBool(L"Environment", L"Extensions", false);
-	bool fluentBars = getIniBool(L"Environment", L"FluentOverlayScrollBars", true);
-	bool trackingPrevention = getIniBool(L"Environment", L"TrackingPrevention", true);
-	std::wstring language = getIniString(L"Environment", L"BrowserLocale", measure->osLocale);
+	bool extensions = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"Extensions", false); // Extensions
+	bool fluentBars = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"FluentOverlayScrollBars", true); // Fluent Bars
+	bool trackingPrevention = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"TrackingPrevention", true);	// Tracking Prevention (SmartScreen)
+	std::wstring language = GetIniString(measure->ini, measure->iniDirty, L"Environment", L"BrowserLocale", L"system"); // Language 
 	// Available browser flags: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/webview-features-flags?tabs=win32cpp#available-webview2-browser-flags
-	std::wstring userBrowserArgs = getIniString(L"Environment", L"BrowserArguments", L"--allow-file-access-from-files");
+	std::wstring userBrowserArgs = GetIniString(measure->ini, measure->iniDirty, L"Environment", L"BrowserArguments", L"--allow-file-access-from-files"); // Browser Flags
 	std::wstring browserArgs;
 	browserArgs.append(L"--enable-features="); // Enable file access from file URLs
 	browserArgs.append(userBrowserArgs);
-
-	// Save any new values to config.ini
-	ini.SaveFile(measure->configPath.c_str());
-
+	
 	// Add environment options
 	auto environmentOptions = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
 
 	environmentOptions->put_AdditionalBrowserArguments(browserArgs.c_str()); // Flags
-	environmentOptions->put_Language(language.c_str()); // Set Browser Locale
+
+	if (language == L"system")
+		environmentOptions->put_Language(measure->osLocale); // Browser Locale : System Locale
+	else 
+		environmentOptions->put_Language(language.c_str()); // Browser Locale : Custom Locale
+
+
 	Microsoft::WRL::ComPtr<ICoreWebView2EnvironmentOptions5> environmentOptions5;
 	if (environmentOptions.As(&environmentOptions5) == S_OK)
 	{
@@ -173,23 +184,25 @@ HRESULT Measure::CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environme
 		}
 		CHECK_FAILURE(hr);
 
-		// Load or create config.ini
-		ini.SetUnicode();
-		ini.LoadFile(configPath.c_str());
-
 		// Read environment options from config.ini
-		std::wstring scriptLocale = getIniString(L"Controller", L"ScriptLocale", osLocale);
-		bool privateMode = getIniBool(L"Controller", L"PrivateMode", false);
-
-		// Save any new default values to config.ini
-		ini.SaveFile(configPath.c_str());
+		std::wstring scriptLocale = GetIniString(ini, iniDirty, L"Controller", L"ScriptLocale", L"system");
+		bool privateMode = GetIniBool(ini, iniDirty, L"Controller", L"PrivateMode", false);
 
 		// OPTIONS
 		controllerOptions->put_ProfileName(L"rainmeter"); // Profile Name
 		controllerOptions->put_IsInPrivateModeEnabled(privateMode); // Private/Incognito Mode
-		if (SUCCEEDED(controllerOptions->QueryInterface(IID_PPV_ARGS(&webViewControllerOptions2))))
+		if (SUCCEEDED(controllerOptions->QueryInterface(
+			IID_PPV_ARGS(&webViewControllerOptions2))))
 		{
-			webViewControllerOptions2->put_ScriptLocale(scriptLocale.c_str()); // Script Locale
+
+			if (scriptLocale == L"system")
+			{
+				webViewControllerOptions2->put_ScriptLocale(osLocale); // System Locale
+			}
+			else
+			{
+				webViewControllerOptions2->put_ScriptLocale(scriptLocale.c_str()); // Custom Locale
+			}
 		}
 
 		// Set Transparent Background
@@ -485,18 +498,11 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 		webViewSettings->put_AreDevToolsEnabled(TRUE);
 		webViewSettings->put_IsZoomControlEnabled(zoomControl);
 
-		// Load or create config.ini
-		ini.SetUnicode();
-		ini.LoadFile(configPath.c_str());
-
 		// Read environment options from config.ini
-		bool statusBar = getIniBool(L"Core", L"PinchZoom", true);
-		bool pinchZoom = getIniBool(L"Core", L"PinchZoom", true);
-		bool swipeNavigation = getIniBool(L"Core", L"SwipeNavigation", true);
-		bool reputationChecking = getIniBool(L"Core", L"SmartScreen", true);
-
-		// Save any new default values to config.ini
-		ini.SaveFile(configPath.c_str());
+		bool statusBar = GetIniBool(ini, iniDirty, L"Core", L"StatusBar", true);
+		bool pinchZoom = GetIniBool(ini, iniDirty, L"Core", L"PinchZoom", true);
+		bool swipeNavigation = GetIniBool(ini, iniDirty, L"Core", L"SwipeNavigation", true);
+		bool reputationChecking = GetIniBool(ini, iniDirty, L"Core", L"SmartScreen", true);
 
 		webViewSettings->put_IsStatusBarEnabled(statusBar);
 
@@ -542,19 +548,12 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 		{
 			wil::com_ptr<ICoreWebView2Profile> profile;
 			CHECK_FAILURE(webView2_13->get_Profile(&profile));
-
-			// Load or create config.ini
-			ini.SetUnicode();
-			ini.LoadFile(configPath.c_str());
-
+			
 			// Read environment options from config.ini
-			std::wstring downloadsFolder = getIniString(L"Profile", L"DownloadsFolderPath", L"");
-			std::wstring colorScheme = getIniString(L"Profile", L"ColorScheme", L"auto");
-			bool passAutoSave = getIniBool(L"Profile", L"PasswordAutoSave", false);
-			bool generalAutoFill = getIniBool(L"Profile", L"GeneralAutoFill", true);
-
-			// Save any new default values to config.ini
-			ini.SaveFile(configPath.c_str());
+			std::wstring downloadsFolder = GetIniString(ini, iniDirty, L"Profile", L"DownloadsFolderPath", L"");
+			std::wstring colorScheme = GetIniString(ini, iniDirty, L"Profile", L"ColorScheme", L"system");
+			bool passAutoSave = GetIniBool(ini, iniDirty, L"Profile", L"PasswordAutoSave", false);
+			bool generalAutoFill = GetIniBool(ini, iniDirty, L"Profile", L"GeneralAutoFill", true);
 
 			profile->put_DefaultDownloadFolderPath(downloadsFolder.c_str()); // Downloads folder path
 
@@ -659,25 +658,7 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 			webView11->add_ContextMenuRequested(
 				Microsoft::WRL::Callback<ICoreWebView2ContextMenuRequestedEventHandler>(
 					[this](ICoreWebView2* sender, ICoreWebView2ContextMenuRequestedEventArgs* args) -> HRESULT
-					{
-						if (contextMenu <= 0) // Block browser's context menu
-						{
-							args->put_Handled(TRUE);
-							return S_OK;
-						}
-						else if (contextMenu == 2) // Show skin menu
-						{
-							RmExecute(skin, L"[!SkinMenu]");
-							args->put_Handled(TRUE);
-							return S_OK;
-						}
-						else if (contextMenu >= 3) // Show custom skin menu
-						{
-							RmExecute(skin, L"[!SkinCustomMenu]");
-							args->put_Handled(TRUE);
-							return S_OK;
-						}
-
+					{					
 						// Show browser's context menu
 						wil::com_ptr<ICoreWebView2ContextMenuItemCollection> items;
 						args->get_MenuItems(&items);
@@ -1140,6 +1121,12 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 			).Get(), nullptr
 		);
 
+		if (iniDirty)
+		{
+			ini.SaveFile(configPath.c_str());
+			iniDirty = false;
+		}
+
 		initialized = true;
 
 		//if (rm) RmLog(rm, LOG_DEBUG, L"WebView2: Initialized successfully with COM Host Objects");
@@ -1158,7 +1145,7 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 		webView->Navigate(url.c_str());
 
 		// Apply initial SkinControl state
-		UpdateChildWindowState(this, ((skinControl == 1 || skinControl >= 3) ? false : true));
+		UpdateChildWindowState(this, ((clickthrough == 1 || clickthrough >= 3) ? false : true));
 	}
 	return S_OK;
 }
@@ -1243,17 +1230,17 @@ void StopWebView2(Measure* measure)
 
 	measure->webViewFrames.clear();
 
+	// Stop navigation
+	if (measure->webView)
+	{
+		measure->webView->Stop();
+	}
+
 	// Close the Controller 
 	if (measure->webViewController)
 	{
 		measure->webViewController->put_IsVisible(FALSE);
 		measure->webViewController->Close();
-	}
-
-	// Stop navigation
-	if (measure->webView)
-	{
-		measure->webView->Stop();
 	}
 
 	// Release
