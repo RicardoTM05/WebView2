@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Permissions Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>WebView2 Permission Tests</h1>
+
+<div class="container">
+
+    <!-- Camera -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Camera</span>
+            <span class="card-subtitle">navigator.mediaDevices / Permissions API</span>
+        </div>
+        <div id="camera-status" class="status"></div>
+        <button class="btn" id="camera-check-btn">Check</button>
+        <button class="btn" id="camera-request-btn">Request</button>
+    </div>
+
+    <!-- Microphone -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Microphone</span>
+            <span class="card-subtitle">navigator.mediaDevices / Permissions API</span>
+        </div>
+        <div id="mic-status" class="status"></div>
+        <button class="btn" id="mic-check-btn">Check</button>
+        <button class="btn" id="mic-request-btn">Request</button>
+    </div>
+
+    <!-- Geolocation -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Geolocation</span>
+            <span class="card-subtitle">navigator.geolocation</span>
+        </div>
+        <div id="geo-status" class="status"></div>
+        <button class="btn" id="geo-check-btn">Check</button>
+        <button class="btn" id="geo-request-btn">Request</button>
+		<p class="card-subtitle" style="margin-top: 5px">This permission requires Windows Location Services to be enabled in your machine to work.</p>
+		<p class="card-subtitle" style="margin-top: 5px">Go to Windows Settings -> Privacy & security -> Location and enable "Location services", "Let apps access your location" and "Let desktop apps access your location".  </p>
+    </div>
+
+    <!-- Notifications -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Notifications</span>
+            <span class="card-subtitle">Notification API</span>
+        </div>
+        <div id="notif-status" class="status"></div>
+        <button class="btn" id="notif-check-btn">Check</button>
+        <button class="btn" id="notif-request-btn">Request</button>
+		<p class="card-subtitle" style="margin-top: 5px">This permission will not trigger a prompt, it has to be granted manually on the WebView Measure by setting AllowNotifications=1</p>
+    </div>
+
+    <!-- Clipboard -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Clipboard</span>
+            <span class="card-subtitle">navigator.clipboard</span>
+        </div>
+        <div id="clipboard-status" class="status"></div>
+        <button class="btn" id="clipboard-check-btn">Check</button>
+        <button class="btn" id="clipboard-request-btn">Request</button>
+    </div>
+
+	<!-- Persistent Storage -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Persistent Storage</span>
+			<span class="card-subtitle">navigator.storage</span>
+		</div>
+		<div id="storage-status" class="status"></div>
+		<button class="btn" id="storage-check-btn">Check</button>
+		<button class="btn" id="storage-request-btn">Request</button>
+	</div>
+	
+	<!-- Screen Wake Lock -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Screen Wake Lock</span>
+			<span class="card-subtitle">Wake Lock API</span>
+		</div>
+		<div id="wakelock-status" class="status"></div>
+		<button class="btn" id="wakelock-check-btn">Check</button>
+		<button class="btn" id="wakelock-request-btn">Request</button>
+	</div>
+	
+	<!-- Bluetooth -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Bluetooth</span>
+			<span class="card-subtitle">Web Bluetooth API</span>
+		</div>
+		<div id="bluetooth-status" class="status"></div>
+		<button class="btn" id="bluetooth-check-btn">Check</button>
+		<button class="btn" id="bluetooth-request-btn">Request</button>
+	</div>
+	
+	<!-- USB -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">USB</span>
+			<span class="card-subtitle">WebUSB API</span>
+		</div>
+		<div id="usb-status" class="status"></div>
+		<button class="btn" id="usb-check-btn">Check</button>
+		<button class="btn" id="usb-request-btn">Request</button>
+	</div>
+	
+	<!-- Serial -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Serial</span>
+			<span class="card-subtitle">Web Serial API</span>
+		</div>
+		<div id="serial-status" class="status"></div>
+		<button class="btn" id="serial-check-btn">Check</button>
+		<button class="btn" id="serial-request-btn">Request</button>
+	</div>
+	
+	<!-- HID -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">HID</span>
+			<span class="card-subtitle">WebHID API</span>
+		</div>
+		<div id="hid-status" class="status"></div>
+		<button class="btn" id="hid-check-btn">Check</button>
+		<button class="btn" id="hid-request-btn">Request</button>
+	</div>
+	
+	<!-- Idle Detection -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Idle Detection</span>
+			<span class="card-subtitle">Idle Detection API</span>
+		</div>
+		<div id="idle-status" class="status"></div>
+		<button class="btn" id="idle-check-btn">Check</button>
+		<button class="btn" id="idle-request-btn">Request</button>
+	</div>
+	
+	<!-- Clipboard Write -->
+	<div class="card">
+		<div class="card-header">
+			<span class="card-title">Clipboard Write</span>
+			<span class="card-subtitle">navigator.clipboard.writeText</span>
+		</div>
+		<div id="clipboard-write-status" class="status"></div>
+		<button class="btn" id="clipboard-write-check-btn">Check</button>
+		<button class="btn" id="clipboard-write-request-btn">Request</button>
+	</div>
+	
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
