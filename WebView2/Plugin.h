@@ -21,16 +21,11 @@ using namespace Microsoft::WRL;
 extern wil::com_ptr<ITypeLib> g_typeLib;
 
 #define WM_APP_CTRL_CHANGED (WM_APP + 100) // Custom message for Ctrl key state change
-
-// Structure to hold frame information
-struct Frames
-{
-	wil::com_ptr<ICoreWebView2Frame2> frame;
-	bool injected = false;
-	bool isDestroyed = false;
-};
+#define WM_APP_REGION_RMB (WM_APP + 200) // Custom message for app-region RMB
 
 struct SkinSubclassData;
+
+extern bool g_extensions_checked;
 
 // Measure structure containing WebView2 state
 struct Measure
@@ -43,9 +38,9 @@ struct Measure
 	SkinSubclassData* skinData = nullptr;
 
 	wchar_t osLocale[LOCALE_NAME_MAX_LENGTH] = { 0 };
-
 	std::wstring userDataFolder;
 	std::wstring configPath;
+	std::wstring extensionsPath;
 	std::wstring url;
 	std::wstring currentUrl;
 	std::wstring currentTitle;
@@ -53,29 +48,30 @@ struct Measure
 	std::wstring hostPath;
 	std::wstring userAgent;
 	
-	int width;
-	int height;
-	int x;
-	int y;
+	int width = 800;
+	int height = 600;
+	int x = 0;
+	int y = 0;
 	int clickthrough = 1;
 	double zoomFactor = 1.0;
 	bool disabled = false;
 	bool autoStart = true;
 	bool visible = true;
-	bool initialized = false;
-	bool isFirstLoad = true;
-	bool isClickthroughActive = false;
 	bool notifications = false;
 	bool zoomControl = true;
 	bool newWindow = false;
-	bool isViewSource = false;
 	bool assistiveFeatures = true;
 	bool hostSecurity = true;
 	bool hostOrigin = true;
 
+	bool initialized = false;
 	bool isCreationInProgress = false;
+	bool isClickthroughActive = false;
 	bool isStopping = false;
+	bool isViewSource = false;
+	bool isFirstLoad = true;
 	bool isCtrlPressed = false;
+	bool isWebViewFocused = false;
 
 	std::wstring onWebViewLoadAction;
 	std::wstring onWebViewFailAction;
@@ -89,8 +85,10 @@ struct Measure
 	std::wstring onPageLoadFinishAction;
 	std::wstring onPageReloadAction;
 
-	CSimpleIniW ini;
-	bool iniDirty = false;
+	CSimpleIniW userSettingsFile;
+	CSimpleIniW extensionsFile;
+	bool userSettingsChanged = false;
+	bool extensionsChanged = false;
 
 	wil::com_ptr<ICoreWebView2Environment> webViewEnvironment;
 	wil::com_ptr<ICoreWebView2Controller> webViewController;
@@ -98,10 +96,9 @@ struct Measure
 	wil::com_ptr<ICoreWebView2> webView;
 	wil::com_ptr<ICoreWebView2_3> webView3;
 	wil::com_ptr<ICoreWebView2_6> webView6;
-	wil::com_ptr<ICoreWebView2Profile7> webViewProfile7;
 	wil::com_ptr<ICoreWebView2Settings> webViewSettings;
 	wil::com_ptr<ICoreWebView2Settings2> webViewSettings2;
-	std::vector<std::shared_ptr<Frames>> Measure::webViewFrames;
+	RECT webViewArea;
 
 	EventRegistrationToken webMessageToken;
 

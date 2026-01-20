@@ -3,6 +3,9 @@
 #include "HostObjectRmAPI.h"
 #include "../API/RainmeterAPI.h"
 #include <WebView2EnvironmentOptions.h>
+#include <filesystem>
+
+bool g_extensions_checked = false;
 
 inline bool ParseBool(const wchar_t* value)
 {
@@ -14,7 +17,8 @@ inline bool ParseBool(const wchar_t* value)
 		_wcsicmp(value, L"on") == 0;
 }
 
-inline bool GetIniBool(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, bool def)
+
+inline bool GetIniBool(CSimpleIniW & ini, bool& dirty, const wchar_t* section, const wchar_t* key, bool def)
 {
 	const wchar_t* value = ini.GetValue(section, key, nullptr);
 	if (!value)
@@ -26,7 +30,7 @@ inline bool GetIniBool(CSimpleIniW& ini, bool& dirty, const wchar_t* section, co
 	return ParseBool(value);
 }
 
-inline std::wstring GetIniString(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, const wchar_t* def)
+inline std::wstring GetIniString(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, const wchar_t* def, bool forceDefault = false)
 {
 	const wchar_t* value = ini.GetValue(section, key, nullptr);
 	if (!value)
@@ -35,8 +39,63 @@ inline std::wstring GetIniString(CSimpleIniW& ini, bool& dirty, const wchar_t* s
 		dirty = true;
 		return def;
 	}
+	if (forceDefault && std::wcscmp(value, def) != 0)
+	{
+		ini.SetValue(section, key, def);
+		dirty = true;
+		return def;
+	}
 	return value;
 }
+
+std::vector<std::wstring> GetExtensionsID(const std::wstring& input)
+{
+	std::vector<std::wstring> result;
+	std::wstringstream ss(input);
+	std::wstring token;
+
+	while (std::getline(ss, token, L',')) {
+		token.erase(0, token.find_first_not_of(L" \t"));
+		token.erase(token.find_last_not_of(L" \t") + 1);
+
+		if (!token.empty()) {
+			result.push_back(token);
+		}
+	}
+	return result;
+}
+
+static void EnableExtension(
+	ICoreWebView2BrowserExtension* extension,
+	BOOL enable)
+{
+	extension->Enable(
+		enable,
+		Callback<ICoreWebView2BrowserExtensionEnableCompletedHandler>(
+			[](HRESULT hr) -> HRESULT
+			{
+				if (FAILED(hr))
+					ShowFailure(hr, L"Enable extension failed");
+				return S_OK;
+			}).Get());
+}
+
+static void RemoveExtension(void* rm,
+	ICoreWebView2BrowserExtension* extension,
+	const std::wstring& name)
+{
+	extension->Remove(
+		Callback<ICoreWebView2BrowserExtensionRemoveCompletedHandler>(
+			[](HRESULT hr) -> HRESULT
+			{
+				if (FAILED(hr))
+					ShowFailure(hr, L"Uninstall extension failed");
+				return S_OK;
+			}).Get());
+
+	RmLogF(rm, LOG_DEBUG, L"WebView2: \"%s\" extension removed.", name.c_str());
+}
+
 
 // Create WebView2 environment and controller
 void CreateWebView2(Measure* measure)
@@ -62,18 +121,18 @@ void CreateWebView2(Measure* measure)
 
 	measure->isCreationInProgress = true;
 
-	// Load or create config.ini
-	measure->ini.SetUnicode();
-	measure->ini.LoadFile(measure->configPath.c_str());
-	measure->iniDirty = false;
+	// Load or create UserSettings.ini
+	measure->userSettingsFile.SetUnicode();
+	measure->userSettingsFile.LoadFile(measure->configPath.c_str());
+	measure->userSettingsChanged = false;
 
-	// Read environment options from config.ini
-	bool extensions = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"Extensions", false); // Extensions
-	bool fluentBars = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"FluentOverlayScrollBars", true); // Fluent Bars
-	bool trackingPrevention = GetIniBool(measure->ini, measure->iniDirty, L"Environment", L"TrackingPrevention", true);	// Tracking Prevention (SmartScreen)
-	std::wstring language = GetIniString(measure->ini, measure->iniDirty, L"Environment", L"BrowserLocale", L"system"); // Language 
+	// Read options from UserSettings.ini
+	bool fluentBars = GetIniBool(measure->userSettingsFile, measure->userSettingsChanged, L"Environment", L"FluentOverlayScrollBars", true); // Fluent Bars
+	bool trackingPrevention = GetIniBool(measure->userSettingsFile, measure->userSettingsChanged, L"Environment", L"TrackingPrevention", true);	// Tracking Prevention (SmartScreen)
+	bool extensions = GetIniBool(measure->userSettingsFile, measure->userSettingsChanged, L"Environment", L"Extensions", false); // Extensions
+	std::wstring language = GetIniString(measure->userSettingsFile, measure->userSettingsChanged, L"Environment", L"BrowserLocale", L"system"); // Language 
 	// Available browser flags: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/webview-features-flags?tabs=win32cpp#available-webview2-browser-flags
-	std::wstring userBrowserArgs = GetIniString(measure->ini, measure->iniDirty, L"Environment", L"BrowserArguments", L"--allow-file-access-from-files"); // Browser Flags
+	std::wstring userBrowserArgs = GetIniString(measure->userSettingsFile, measure->userSettingsChanged, L"Environment", L"BrowserArguments", L"--allow-file-access-from-files"); // Browser Flags
 	std::wstring browserArgs;
 	browserArgs.append(L"--enable-features="); // Enable file access from file URLs
 	browserArgs.append(userBrowserArgs);
@@ -158,7 +217,6 @@ HRESULT Measure::CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environme
 
 	webViewEnvironment = env;
 
-
 	// Create WebView2 controller with options.
 	auto webViewEnvironment10 = webViewEnvironment.try_query<ICoreWebView2Environment10>();
 	if (!webViewEnvironment10)
@@ -184,9 +242,9 @@ HRESULT Measure::CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environme
 		}
 		CHECK_FAILURE(hr);
 
-		// Read environment options from config.ini
-		std::wstring scriptLocale = GetIniString(ini, iniDirty, L"Controller", L"ScriptLocale", L"system");
-		bool privateMode = GetIniBool(ini, iniDirty, L"Controller", L"PrivateMode", false);
+		// Read options from UserSettings.ini
+		std::wstring scriptLocale = GetIniString(userSettingsFile, userSettingsChanged, L"Controller", L"ScriptLocale", L"system");
+		bool privateMode = GetIniBool(userSettingsFile, userSettingsChanged, L"Controller", L"PrivateMode", false);
 
 		// OPTIONS
 		controllerOptions->put_ProfileName(L"rainmeter"); // Profile Name
@@ -261,10 +319,9 @@ void RegisterFrames(Measure* measure, ICoreWebView2Frame* rawFrame, int level)
 	wil::com_ptr<ICoreWebView2Frame> frame = rawFrame;
 
 	wil::com_ptr<ICoreWebView2Frame2> frame2 = frame.try_query<ICoreWebView2Frame2>();
-	wil::com_ptr<ICoreWebView2Frame5> frame5 = frame.try_query<ICoreWebView2Frame5>();
 
 	// Only proceed if we have valid interfaces
-	if (!frame2 || !frame5) return;
+	if (!frame2) return;
 
 	// Add host object
 	wil::com_ptr<HostObjectRmAPI> hostObject =
@@ -280,19 +337,10 @@ void RegisterFrames(Measure* measure, ICoreWebView2Frame* rawFrame, int level)
 	CHECK_FAILURE(frame2->AddHostObjectToScriptWithOrigins(L"RainmeterAPI", &hostObjectVariant, 1, &origins));
 	VariantClear(&hostObjectVariant);
 
-	auto newFrameState = std::make_shared<Frames>();
-	newFrameState->frame = frame2;
-	newFrameState->injected = false;
-	newFrameState->isDestroyed = false;
-
-	measure->webViewFrames.push_back(newFrameState);
-
-	Frames* frameState = newFrameState.get();
-
 	// Inject frame ancestor to nested frames to allow framing websites. (Requires virtual host or http-server).
 	frame2->add_NavigationStarting(
 		Microsoft::WRL::Callback<ICoreWebView2FrameNavigationStartingEventHandler>(
-			[measure, origin, frameState](ICoreWebView2Frame* sender, ICoreWebView2NavigationStartingEventArgs* args) -> HRESULT
+			[measure, origin](ICoreWebView2Frame* sender, ICoreWebView2NavigationStartingEventArgs* args) -> HRESULT
 			{
 				wil::com_ptr<ICoreWebView2NavigationStartingEventArgs2> navigationStartArgs;
 				if (SUCCEEDED(args->QueryInterface(IID_PPV_ARGS(&navigationStartArgs))))
@@ -304,63 +352,7 @@ void RegisterFrames(Measure* measure, ICoreWebView2Frame* rawFrame, int level)
 		).Get(), nullptr
 	);
 
-	frame2->add_ContentLoading(
-		Callback<ICoreWebView2FrameContentLoadingEventHandler>(
-			[measure, frameState](ICoreWebView2Frame* sender, ICoreWebView2ContentLoadingEventArgs* args) -> HRESULT
-			{
-				return S_OK;
-			}
-		).Get(), nullptr
-	);
-
-	frame2->add_DOMContentLoaded(
-		Callback<ICoreWebView2FrameDOMContentLoadedEventHandler>(
-			[measure, frameState](ICoreWebView2Frame* sender, ICoreWebView2DOMContentLoadedEventArgs* args) -> HRESULT
-			{
-				return S_OK;
-			}
-		).Get(), nullptr
-	);
-
-	frame2->add_NavigationCompleted(
-		Callback<ICoreWebView2FrameNavigationCompletedEventHandler>(
-			[measure, frameState](ICoreWebView2Frame* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT
-			{
-				return S_OK;
-			}
-		).Get(), nullptr
-	);
-
-	frame2->add_Destroyed(
-		Callback<ICoreWebView2FrameDestroyedEventHandler>(
-			[measure, level, frameState](ICoreWebView2Frame* sender, IUnknown* args)->HRESULT
-			{
-				if (measure->isStopping)
-					return S_OK;
-				// Remove frame
-				auto it = std::remove_if(
-					measure->webViewFrames.begin(),
-					measure->webViewFrames.end(),
-					[sender](const std::shared_ptr<Frames>& f)
-					{
-						// Check equality against the COM pointer inside the struct
-						return f->frame.get() == sender;
-					}
-				);
-				if (it != measure->webViewFrames.end())
-				{
-					measure->webViewFrames.erase(it, measure->webViewFrames.end());
-				}
-
-				frameState->isDestroyed = true;
-
-				return S_OK;
-			}
-		).Get(), nullptr
-	);
-
 	wil::com_ptr<ICoreWebView2Frame7> frame7 = frame.try_query<ICoreWebView2Frame7>();
-
 	if (frame7)
 	{
 		CHECK_FAILURE(frame7->add_FrameCreated(
@@ -397,22 +389,10 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 		webViewController = controller;
 		CHECK_FAILURE(webViewController->get_CoreWebView2(&webView));
 
-		// Set bounds within the skin window
-		RECT bounds;
-		GetClientRect(skinWindow, &bounds);
-		bounds.left = x;
-		bounds.top = y;
-		if (width > 0)
-		{
-			bounds.right = x + width;
-		}
-		if (height > 0)
-		{
-			bounds.bottom = y + height;
-		}
-
+		webViewArea = {x, y, x + width, y + height };
+		
 		// CONTROLLER OPTIONS
-		webViewController->put_Bounds(bounds); // Set initial bounds
+		webViewController->put_Bounds(webViewArea); // Set initial bounds
 		webViewController->put_IsVisible(visible); // Set initial visibility
 		webViewController->put_ZoomFactor(zoomFactor); // Set initial zoom factor
 
@@ -427,6 +407,28 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 					if (reason == COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC)
 						args->put_Handled(TRUE);
 
+					return S_OK;
+				}
+			).Get(), nullptr
+		);
+
+		// Set isWebViewFocused variable
+		webViewController->add_GotFocus(
+			Microsoft::WRL::Callback<ICoreWebView2FocusChangedEventHandler>(
+				[this](ICoreWebView2Controller* sender, IUnknown* args) -> HRESULT
+				{
+					isWebViewFocused = true;
+					return S_OK;
+				}
+			).Get(), nullptr
+		);
+
+		// Set isWebViewFocused variable
+		webViewController->add_LostFocus(
+			Microsoft::WRL::Callback<ICoreWebView2FocusChangedEventHandler>(
+				[this](ICoreWebView2Controller* sender, IUnknown* args) -> HRESULT
+				{
+					isWebViewFocused = false;
 					return S_OK;
 				}
 			).Get(), nullptr
@@ -498,11 +500,11 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 		webViewSettings->put_AreDevToolsEnabled(TRUE);
 		webViewSettings->put_IsZoomControlEnabled(zoomControl);
 
-		// Read environment options from config.ini
-		bool statusBar = GetIniBool(ini, iniDirty, L"Core", L"StatusBar", true);
-		bool pinchZoom = GetIniBool(ini, iniDirty, L"Core", L"PinchZoom", true);
-		bool swipeNavigation = GetIniBool(ini, iniDirty, L"Core", L"SwipeNavigation", true);
-		bool reputationChecking = GetIniBool(ini, iniDirty, L"Core", L"SmartScreen", true);
+		// Read options from UserSettings.ini
+		bool statusBar = GetIniBool(userSettingsFile, userSettingsChanged, L"Core", L"StatusBar", true);
+		bool pinchZoom = GetIniBool(userSettingsFile, userSettingsChanged, L"Core", L"PinchZoom", true);
+		bool swipeNavigation = GetIniBool(userSettingsFile, userSettingsChanged, L"Core", L"SwipeNavigation", true);
+		bool reputationChecking = GetIniBool(userSettingsFile, userSettingsChanged, L"Core", L"SmartScreen", true);
 
 		webViewSettings->put_IsStatusBarEnabled(statusBar);
 
@@ -549,11 +551,11 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 			wil::com_ptr<ICoreWebView2Profile> profile;
 			CHECK_FAILURE(webView2_13->get_Profile(&profile));
 			
-			// Read environment options from config.ini
-			std::wstring downloadsFolder = GetIniString(ini, iniDirty, L"Profile", L"DownloadsFolderPath", L"");
-			std::wstring colorScheme = GetIniString(ini, iniDirty, L"Profile", L"ColorScheme", L"system");
-			bool passAutoSave = GetIniBool(ini, iniDirty, L"Profile", L"PasswordAutoSave", false);
-			bool generalAutoFill = GetIniBool(ini, iniDirty, L"Profile", L"GeneralAutoFill", true);
+			// Read options from UserSettings.ini
+			std::wstring downloadsFolder = GetIniString(userSettingsFile, userSettingsChanged, L"Profile", L"DownloadsFolderPath", L"");
+			std::wstring colorScheme = GetIniString(userSettingsFile, userSettingsChanged, L"Profile", L"ColorScheme", L"system");
+			bool passAutoSave = GetIniBool(userSettingsFile, userSettingsChanged, L"Profile", L"PasswordAutoSave", false);
+			bool generalAutoFill = GetIniBool(userSettingsFile, userSettingsChanged, L"Profile", L"GeneralAutoFill", true);
 
 			profile->put_DefaultDownloadFolderPath(downloadsFolder.c_str()); // Downloads folder path
 
@@ -570,17 +572,180 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 				profile->put_PreferredColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO);
 			}
 
-			auto profile6 = webViewSettings.try_query<ICoreWebView2Profile6>();
+			auto profile6 = profile.try_query<ICoreWebView2Profile6>();
 			if (profile6)
 			{
 				profile6->put_IsPasswordAutosaveEnabled(passAutoSave); // Password AutoSave
 				profile6->put_IsGeneralAutofillEnabled(generalAutoFill); // General AutoFill
 			}
 
-			auto profile7 = webViewSettings.try_query<ICoreWebView2Profile7>();
-			if (profile7)
+			// Extensions
+			auto profile7 = profile.try_query<ICoreWebView2Profile7>();
+			const std::filesystem::path extensionsRoot = std::filesystem::path(userDataFolder) / L"Extensions";
+
+			if (profile7 && std::filesystem::exists(extensionsRoot) && !g_extensions_checked)
 			{
-				webViewProfile7 = profile7; // For browser extensions (TODO)
+				g_extensions_checked = true;
+
+				profile7->GetBrowserExtensions(
+					Callback<ICoreWebView2ProfileGetBrowserExtensionsCompletedHandler>(
+						[this, profile7, extensionsRoot]
+						(HRESULT error, ICoreWebView2BrowserExtensionList* extensions) -> HRESULT
+						{
+							if (FAILED(error) || !extensions)
+							{
+								ShowFailure(error, L"GetBrowserExtensions failed");
+								return S_OK;
+							}
+
+							// Load Extensions.ini
+							extensionsFile.SetUnicode();
+							extensionsFile.LoadFile(extensionsPath.c_str());
+							extensionsChanged = false;
+
+							UINT extensionsCount = 0;
+							extensions->get_Count(&extensionsCount);
+
+							auto addExtension = [&](const std::filesystem::path& path, const std::wstring& folderName)
+								{
+									profile7->AddBrowserExtension(
+										path.c_str(),
+										Callback<ICoreWebView2ProfileAddBrowserExtensionCompletedHandler>(
+											[this, folderName]
+											(HRESULT error, ICoreWebView2BrowserExtension* extension) mutable -> HRESULT
+											{
+												if (FAILED(error))
+												{
+													if (error == ERROR_FILE_NOT_FOUND)
+														RmLog(rm, LOG_ERROR, L"WebView2: Invalid extension path or manifest.json file is missing.");
+													else if (error == ERROR_NOT_SUPPORTED)
+														RmLog(rm, LOG_ERROR, L"WebView2: Extensions are disabled.");
+
+													return S_OK;
+												}
+
+												wil::unique_cotaskmem_string id;
+												wil::unique_cotaskmem_string name;
+
+												extension->get_Id(&id);
+												extension->get_Name(&name);
+
+												// Create the extension's section on Extensions.ini
+												extensionsFile.SetValue(folderName.c_str(), L"ID", id.get());
+												extensionsFile.SetValue(folderName.c_str(), L"Name", name.get());
+												extensionsFile.SetValue(folderName.c_str(), L"Enabled", L"true");
+												extensionsFile.SetValue(folderName.c_str(), L"Uninstall", L"false");
+												extensionsFile.SaveFile(extensionsPath.c_str());
+												extensionsChanged = false;
+
+												extension->Enable(
+													TRUE,
+													Callback<ICoreWebView2BrowserExtensionEnableCompletedHandler>(
+														[](HRESULT hr) -> HRESULT
+														{
+															if (FAILED(hr))
+																ShowFailure(hr, L"Enable extension failed");
+															return S_OK;
+														}).Get());
+
+												RmLogF(rm, LOG_NOTICE, L"WebView2: \"%s\" extension installed.", name.get());
+												return S_OK;
+											}).Get());
+								};
+
+							// Check extensions folders at Extensions\/
+							for (const auto& entry : std::filesystem::directory_iterator(extensionsRoot))
+							{
+								if (!entry.is_directory())
+									continue;
+
+								const auto& extensionPath = entry.path();
+								const std::wstring folderName = extensionPath.filename().wstring();
+								// Look for already saved ID on Extensions.ini for this extension
+								const std::wstring savedID = extensionsFile.GetValue(folderName.c_str(), L"ID", L"");
+
+								if (savedID.empty()) // No ID found
+								{
+									addExtension(extensionPath, folderName);
+									continue;
+								}
+
+								bool found = false;
+
+								for (UINT i = 0; i < extensionsCount; ++i) 
+								{
+									wil::com_ptr<ICoreWebView2BrowserExtension> extension;
+									extensions->GetValueAtIndex(i, &extension);
+
+									wil::unique_cotaskmem_string id;
+									extension->get_Id(&id);
+
+									if (savedID != id.get()) // Check which already installed extension matches ID.
+										continue;
+
+									found = true;
+
+									wil::unique_cotaskmem_string name;
+									BOOL enabled = FALSE;
+
+									extension->get_Name(&name);
+									extension->get_IsEnabled(&enabled);
+
+									// Read options from Extensions.ini
+									const bool enable = GetIniBool(extensionsFile, extensionsChanged, folderName.c_str(), L"Enabled", true);
+									const bool remove = GetIniBool(extensionsFile, extensionsChanged, folderName.c_str(), L"Uninstall", false);
+
+									if (remove) // Uninstall Extension
+									{
+										extension->Remove(
+											Callback<ICoreWebView2BrowserExtensionRemoveCompletedHandler>(
+												[](HRESULT hr) -> HRESULT
+												{
+													if (FAILED(hr))
+														ShowFailure(hr, L"Uninstall extension failed");
+													return S_OK;
+												}).Get());
+
+										// Delete section from Extensions.ini
+										extensionsFile.Delete(folderName.c_str(), nullptr);
+										extensionsFile.SaveFile(extensionsPath.c_str());
+										extensionsChanged = false;
+
+										RmLogF(rm, LOG_NOTICE, L"WebView2: \"%s\" extension removed.", name.get());
+										return S_OK;
+									}
+
+									if (enabled != enable) // Toggle Extension
+									{
+										extension->Enable(
+											enable,
+											Callback<ICoreWebView2BrowserExtensionEnableCompletedHandler>(
+												[](HRESULT hr) -> HRESULT
+												{
+													if (FAILED(hr))
+														ShowFailure(hr, L"Enable extension failed");
+													return S_OK;
+												}).Get());
+
+										RmLogF(rm, LOG_NOTICE, L"WebView2: \"%s\" extension %s.", name.get(), enable ? L"enabled" : L"disabled");
+									}
+
+									break;
+								}
+
+								if (!found) // Extension not yet installed.
+									addExtension(extensionPath, folderName);
+							}
+
+							if (extensionsChanged)
+							{
+								// Save Extensions.ini
+								extensionsFile.SaveFile(extensionsPath.c_str());
+								extensionsChanged = false;
+							}
+
+							return S_OK;
+						}).Get());
 			}
 		}
 
@@ -616,16 +781,18 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 				Microsoft::WRL::Callback<ICoreWebView2FrameCreatedEventHandler>(
 					[this, variant](ICoreWebView2* sender, ICoreWebView2FrameCreatedEventArgs* args) -> HRESULT
 					{
-						wil::com_ptr<ICoreWebView2Frame> frame;
-						args->get_Frame(&frame);
+						if (!isStopping) 
+						{
+							wil::com_ptr<ICoreWebView2Frame> frame;
+							args->get_Frame(&frame);
 
-						BOOL isDestroyed;
-						frame->IsDestroyed(&isDestroyed);
+							BOOL isDestroyed;
+							frame->IsDestroyed(&isDestroyed);
 
-						if (isDestroyed) return S_OK;
+							if (isDestroyed) return S_OK;
 
-						RegisterFrames(this, frame.get(), 1);
-
+							RegisterFrames(this, frame.get(), 1);
+						}
 						return S_OK;
 					}
 				).Get(), nullptr
@@ -1121,10 +1288,10 @@ HRESULT Measure::CreateControllerHandler(HRESULT result, ICoreWebView2Controller
 			).Get(), nullptr
 		);
 
-		if (iniDirty)
+		if (userSettingsChanged)
 		{
-			ini.SaveFile(configPath.c_str());
-			iniDirty = false;
+			userSettingsFile.SaveFile(configPath.c_str());
+			userSettingsChanged = false;
 		}
 
 		initialized = true;
@@ -1227,8 +1394,6 @@ void StopWebView2(Measure* measure)
 	measure->isStopping = true;
 
 	measure->isCreationInProgress = false;
-
-	measure->webViewFrames.clear();
 
 	// Stop navigation
 	if (measure->webView)

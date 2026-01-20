@@ -4,7 +4,7 @@
 #include <WebView2EnvironmentOptions.h>
 #include <CommCtrl.h>
 #include <mutex>
-#include <algorithm>
+#include <fstream>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "ole32.lib")
@@ -73,9 +73,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 // Measure constructor
 Measure::Measure() : rm(nullptr), skin(nullptr), skinWindow(nullptr),
-measureName(nullptr),
-width(800), height(600), x(0), y(0),
-webMessageToken{}
+measureName(nullptr), webMessageToken{}
 {
 	// Initialize COM for this thread if not already done
 	if (!g_comInitialized)
@@ -145,14 +143,9 @@ void UpdateWindowBounds(Measure* measure)
 	if (!measure || !measure->webViewController)
 		return;
 
-	RECT bounds{
-		measure->x,
-		measure->y,
-		measure->x + measure->width,
-		measure->y + measure->height
-	};
+	measure->webViewArea = {measure->x, measure->y, measure->x + measure->width, measure->y + measure->height};
 
-	measure->webViewController->put_Bounds(bounds);
+	measure->webViewController->put_Bounds(measure->webViewArea);
 	measure->webViewController->NotifyParentWindowPositionChanged();
 }
 
@@ -220,9 +213,88 @@ LRESULT CALLBACK SkinSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 	if (!skinData || skinData->destroying)
 		return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+
 	switch (uMsg)
 	{
-	case WM_APP_CTRL_CHANGED:
+	case WM_CONTEXTMENU: // Fix for SkinMenu opening when focused on WebView and the Menu key is pressed.
+	{
+		for (Measure* measure : skinData->measures)
+		{
+			if (measure && measure->initialized)
+			{
+				if (measure->isWebViewFocused)
+					return 0;
+			}
+		}
+		break;
+	}
+	case WM_SETCURSOR: // 1.Fix for app-region not opening SkinMenu.
+	{
+		const UINT hitTest = LOWORD(lParam);
+		const UINT mouseMsg = HIWORD(lParam);
+
+		if (hitTest != HTCAPTION || mouseMsg != WM_RBUTTONDOWN)
+			break;
+
+		// Mouse position
+		const DWORD pos = GetMessagePos();
+		const POINT pt{ static_cast<short>(LOWORD(pos)), static_cast<short>(HIWORD(pos)) };
+
+		for (const Measure* measure : skinData->measures)
+		{
+			if (!measure || !measure->initialized)
+				continue;
+
+			if (measure->clickthrough == 1 || measure->isClickthroughActive)
+				continue;
+
+			// WebView area.
+			RECT rect{measure->webViewArea};
+			MapWindowPoints(hWnd, nullptr, reinterpret_cast<POINT*>(&rect), 2);
+
+			// Check if Click was inside the WebView area.
+			if (!PtInRect(&rect, pt))
+				continue;
+
+			// Click was inside the WebView area - Post custom message
+			PostMessage(measure->skinWindow, WM_APP_REGION_RMB, HTCAPTION, 0);
+			break;
+		}
+		break;
+	}
+	case WM_APP_REGION_RMB: // 2.Fix for app-region not opening SkinMenu.
+	{
+		for (const Measure* measure : skinData->measures)
+		{
+			if (!measure || !measure->initialized)
+				continue;
+
+			if (measure->clickthrough == 1 || measure->isClickthroughActive)
+				continue; 
+
+			// Open SkinMenu
+			RmExecute(measure->skin, L"[!SkinMenu]");
+			break;
+		}
+		break;
+	}
+	case WM_NCLBUTTONDOWN: // Clicking on the skin area removes focus from the WebView window.
+	{
+		HWND focused = GetFocus();
+
+		for (const Measure* measure : skinData->measures)
+		{
+			if (!measure || !measure->initialized)
+				continue;
+
+			if (focused != measure->skinWindow)
+				SetFocus(nullptr);
+
+			return DefWindowProc(hWnd, uMsg, wParam, lParam);
+		}
+		break;
+	}
+	case WM_APP_CTRL_CHANGED: // Clickthrough state control
 	{
 		bool isCtrlPressed = (bool)wParam;
 
@@ -232,7 +304,7 @@ LRESULT CALLBACK SkinSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				continue;
 
 			measure->isCtrlPressed = isCtrlPressed;
-			
+
 			if (measure->clickthrough <= 1)
 				continue;
 
@@ -342,6 +414,158 @@ void RemoveKeyboardHook()
 	}
 }
 
+static std::wstring Utf8ToWstring(const char* data, int len)
+{
+	if (len <= 0) return std::wstring();
+
+	// First call to get required buffer size
+	int required = MultiByteToWideChar(CP_UTF8, 0, data, len, nullptr, 0);
+	if (required == 0) {
+		throw std::runtime_error("Utf8ToWstring: MultiByteToWideChar failed (size query)");
+	}
+
+	std::wstring out;
+	out.resize(required);
+	int res = MultiByteToWideChar(CP_UTF8, 0, data, len, &out[0], required);
+	if (res == 0) {
+		throw std::runtime_error("Utf8ToWstring: MultiByteToWideChar failed (conversion)");
+	}
+	return out;
+}
+
+std::wstring ReadScriptFile(const std::wstring& path)
+{
+	std::ifstream is(path, std::ios::binary);
+	if (!is) {
+		throw std::runtime_error("Failed to open file");
+	}
+
+	// Read all bytes
+	std::vector<char> bytes((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
+	size_t n = bytes.size();
+	if (n == 0) return std::wstring();
+
+	const unsigned char* ub = reinterpret_cast<const unsigned char*>(bytes.data());
+
+	// Detect BOMs
+	if (n >= 3 && ub[0] == 0xEFu && ub[1] == 0xBBu && ub[2] == 0xBFu) {
+		// UTF-8 with BOM -> skip BOM then convert
+		return Utf8ToWstring(reinterpret_cast<const char*>(ub + 3), static_cast<int>(n - 3));
+	}
+
+	if (n >= 2 && ub[0] == 0xFFu && ub[1] == 0xFEu) {
+		// UTF-16 LE with BOM
+		std::wstring out;
+		out.reserve((n - 2) / 2);
+		for (size_t i = 2; i + 1 < n; i += 2) {
+			wchar_t ch = static_cast<wchar_t>(ub[i] | (ub[i + 1] << 8));
+			out.push_back(ch);
+		}
+		return out;
+	}
+
+	if (n >= 2 && ub[0] == 0xFEu && ub[1] == 0xFFu) {
+		// UTF-16 BE with BOM -> swap bytes
+		std::wstring out;
+		out.reserve((n - 2) / 2);
+		for (size_t i = 2; i + 1 < n; i += 2) {
+			wchar_t ch = static_cast<wchar_t>((ub[i] << 8) | ub[i + 1]);
+			out.push_back(ch);
+		}
+		return out;
+	}
+
+	// No BOM: assume UTF-8 and convert
+	return Utf8ToWstring(reinterpret_cast<const char*>(ub), static_cast<int>(n));
+}
+
+bool IsFilePathSyntax(LPCWSTR input) {
+	if (!input || input[0] == L'\0') return false;
+
+	bool hasExtension = false;
+	bool hasSeparator = false;
+	bool hasIllegalChar = false;
+
+	const wchar_t* lastDot = nullptr;
+	const wchar_t* p = input;
+
+	while (*p) {
+		if (wcschr(L"<>:\"|?*();'", *p)) {
+			if (!(*p == L':' && p == input + 1)) {
+				return false; 
+			}
+		}
+
+		if (*p == L'\\' || *p == L'/') {
+			hasSeparator = true;
+			lastDot = nullptr;
+		}
+		else if (*p == L'.') {
+			lastDot = p;
+		}
+		p++;
+	}
+
+	if (lastDot != nullptr && lastDot != input) {
+		if (!iswspace(*(lastDot + 1)) && *(lastDot + 1) != L'\0') {
+			hasExtension = true;
+		}
+	}
+
+	bool hasSpace = (wcschr(input, L' ') != nullptr);
+
+	if (hasSpace && !hasSeparator) {
+		return false;
+	}
+
+	return hasSeparator || hasExtension;
+}
+
+std::wstring NormalizePath(void* rm, LPCWSTR path)
+{
+	if (!path || !*path)
+		return {};
+
+	std::wstring value = path;
+
+	// Relative path - absolute
+	if (value[0] != L'/' && (value.length() < 2 || value[1] != L':'))
+	{
+		if (LPCWSTR absolutePath = RmPathToAbsolute(rm, value.c_str()))
+		{
+			value = absolutePath;
+		}
+	}
+
+	// Normalize slashes
+	for (wchar_t& ch : value)
+	{
+		if (ch == L'\\') ch = L'/';
+	}
+
+	// Enforce extension if required
+	auto dotPos = value.find_last_of(L'.');
+	if (dotPos == std::wstring::npos)
+	{
+		RmLog(rm, LOG_ERROR, L"Execute: File extension is missing, use '.js'.");
+		return {};
+	}
+
+	std::wstring extension = value.substr(dotPos);
+	for (wchar_t& ch : extension)
+		ch = towlower(ch);
+
+	if (_wcsicmp(extension.c_str(), L".js") != 0)
+	{
+		std::wstring msg = L"Execute: The file extension '";
+		msg.append(extension);
+		msg += L"' is not supported. Use '.js' extension.";
+		RmLog(rm, LOG_ERROR, msg.c_str());
+		return {};
+	}
+	return value;
+}
+
 // Rainmeter Plugin Exports
 PLUGIN_EXPORT void Initialize(void** data, void* rm)
 {
@@ -408,10 +632,12 @@ PLUGIN_EXPORT void Initialize(void** data, void* rm)
 	wchar_t tempPath[MAX_PATH];
 	GetTempPathW(MAX_PATH, tempPath);
 	measure->userDataFolder = std::wstring(tempPath) + L"RainmeterWebView2";
-	measure->configPath = measure->userDataFolder + L"\\WebView2Settings.ini";
+	measure->configPath = measure->userDataFolder + L"\\UserSettings.ini";
+	measure->extensionsPath = measure->userDataFolder + L"\\Extensions\\Extensions.ini";
 
 	// Create the directory if it doesn't exist
 	CreateDirectoryW(measure->userDataFolder.c_str(), nullptr);
+	CreateDirectoryW((measure->userDataFolder + L"\\Extensions").c_str(), nullptr);
 
 	SkinSubclassData* skinData = nullptr;
 	bool createdNew = false;
@@ -581,9 +807,9 @@ PLUGIN_EXPORT void Reload(void* data, void* rm, double* /*maxValue*/)
 	measure->onWebViewLoadAction = newOnWebViewLoadAction;
 	measure->onWebViewFailAction = newOnWebViewFailAction;
 	measure->onWebViewStopAction = newOnWebViewStopAction;
+	
 	measure->onStateChangeAction = newOnStateChangeAction;
 	measure->onUrlChangeAction = newOnUrlChangeAction;
-
 	measure->onPageLoadStartAction = newOnPageLoadStartAction;
 	measure->onPageLoadingAction = newOnPageLoadingAction;
 	measure->onPageDOMLoadAction = newOnPageDOMLoadAction;
@@ -817,20 +1043,69 @@ PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
 		{
 			measure->webView6->OpenTaskManagerWindow();
 		}
+		else
+		{
+			RmLog(measure->rm, LOG_ERROR, L"WebView2: Unknown Open command");
+			return;
+		}
 	}
-	else if (_wcsicmp(action.c_str(), L"ExecuteScript") == 0)
+	else if (_wcsicmp(action.c_str(), L"Execute") == 0)
 	{
 		if (!param.empty())
 		{
-			measure->webView->ExecuteScript(
-				param.c_str(),
-				Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-					[](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+			if (IsFilePathSyntax(param.c_str())) // Script file
+			{
+				try {
+
+					std::wstring path = NormalizePath(measure->rm, param.c_str());
+
+					if (path.empty())
 					{
-						return S_OK;
+						return;
 					}
-				).Get()
-			);
+
+					std::wstring script = ReadScriptFile(path);
+
+					if (script.empty())
+					{
+						return;
+					}
+
+					measure->webView->ExecuteScript(
+						script.c_str(),
+						Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+							[](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+							{
+								return S_OK;
+							}
+						).Get()
+					);
+				}
+				catch (const std::exception& ex) {
+					try {
+						std::wstring msg = Utf8ToWstring(
+							ex.what(),
+							static_cast<int>(std::strlen(ex.what()))
+						);
+						RmLog(measure->rm, LOG_ERROR, msg.c_str());
+					}
+					catch (...) {
+						RmLog(measure->rm, LOG_ERROR, L"Execute: Unknown error");
+					}
+				}
+			}
+			else // Script string.
+			{
+				measure->webView->ExecuteScript(
+					param.c_str(),
+					Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+						[](HRESULT errorCode, LPCWSTR resultObjectAsJson) -> HRESULT
+						{
+							return S_OK;
+						}
+					).Get()
+				);
+			}
 		}
 	}
 	else
@@ -959,6 +1234,6 @@ PLUGIN_EXPORT void Finalize(void* data)
 	{
 		RemoveKeyboardHook();
 	}
-	
+
 	delete measure;
 }
