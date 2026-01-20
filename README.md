@@ -24,7 +24,7 @@
   <tr>
     <td>🚀 <a href="#-what-can-you-build">What Can You Build?</a></td>
     <td>🚀 <a href="#-quick-start">Quick Start</a></td>
-    <td>❓ <a href="#-how-to-make-a-draggable-webview2-skin">Draggable WebView2 Skin</a></td>
+    <td>❓ <a href="#-how-to-make-a-draggable-skin">Draggable WebView2 Skin</a></td>
     <td>🆘 <a href="#-troubleshooting">Troubleshooting</a></td>
   </tr>
   <tr>
@@ -1728,7 +1728,7 @@ By default, `HostSecurity=1`, therefore, as seen on the URL, it's using the `htt
 
 Also, `HostOrigin=1` by default, but in this example it doesn't matter given our skin's structure. This skin has only a root config, so that's the only host name we can use. Which is the `myrootconfig/` part on the URL. 
 
-If we now open `DevTools` (press F5 inside the WebView window) and go to the `Aplication` tab, then go to `Storage` -> `Local storage` on the left side panel, we'll see that our `https://myrootconfig` origin is listed.
+If we now open `DevTools` (press F12 inside the WebView window) and go to the `Aplication` tab, then go to `Storage` -> `Local storage` on the left side panel, we'll see that our `https://myrootconfig` origin is listed.
 
 Clicking on our origin will show all the key-value pairs that are stored. Obviously it is empty if you haven't saved anything yet. Check the storage for `YoutubePlayer` example skin instead. 
 
@@ -1767,21 +1767,26 @@ The plugin includes ready-to-use example skins:
 
 <table>
 <tr>
-<td align="center" width="25%">
+<td align="center" width="20%">
 <b>🕐 Clock</b><br/>
 <sub>Animated liquid clock with smooth animations</sub>
 </td>
-<td align="center" width="25%">
+<td align="center" width="20%">
 <b>📅 Calendar</b><br/>
 <sub>Interactive month view calendar</sub>
 </td>
-<td align="center" width="25%">
+<td align="center" width="20%">
 <b>⚙️ Config Reader</b><br/>
 <sub>Read options from measures and sections</sub>
 </td>
-<td align="center" width="25%">
+<td align="center" width="20%">
 <b>🔧 Utilities</b><br/>
 <sub>Demonstrate all API functions</sub>
+</td>
+</td>
+<td align="center" width="20%">
+<b>▶️ Youtube Player</b><br/>
+<sub>Youtube Player iFrame API example</sub>
 </td>
 </tr>
 </table>
@@ -1890,7 +1895,7 @@ document.addEventListener('DOMContentLoaded', () => {
 - ✅ Check URL path is correct
 - ✅ Verify HTML file exists
 - ✅ Look for errors in Rainmeter log
-- ✅ Try: `[!CommandMeasure MeasureName "OpenDevTools"]` to debug
+- ✅ Try: `[!CommandMeasure MeasureName "Open DevTools"]` to debug
 
 **Transparency tip:** The WebView has transparent background by default. Use `background: transparent;` in your CSS.
 
