@@ -1,4 +1,7 @@
-// Copyright (C) 2025 nstechbytes. All rights reserved.
+/**
+*  Copyright (C) 2025 nstechbytes. All rights reserved.
+*/ 
+
 #pragma once
 
 #include <Windows.h>
