@@ -28,10 +28,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HostObjectRmAPI.h" />
-    <ClInclude Include="HostObject_h.h" />
     <ClInclude Include="Plugin.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="SimpleIni.h" />
+    <ClInclude Include="Ini\SimpleIni.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
