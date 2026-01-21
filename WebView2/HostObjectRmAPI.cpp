@@ -1,5 +1,5 @@
-/**
-*  Copyright (C) 2025 nstechbytes. All rights reserved.
+/*
+** Copyright (C) 2025 nstechbytes. All rights reserved.
 */ 
 
 #include "HostObjectRmAPI.h"

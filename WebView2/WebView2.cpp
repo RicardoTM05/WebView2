@@ -3,102 +3,13 @@
 */ 
 
 #include "Plugin.h"
+#include "Utils.h"
+#include "PathUtils.h"
+#include "Extension.h"
 #include "HostObjectRmAPI.h"
 #include "../API/RainmeterAPI.h"
 #include <WebView2EnvironmentOptions.h>
 #include <filesystem>
-
-bool g_extensions_checked = false;
-
-inline bool ParseBool(const wchar_t* value)
-{
-	if (!value) return false;
-
-	return _wcsicmp(value, L"true") == 0 ||
-		_wcsicmp(value, L"1") == 0 ||
-		_wcsicmp(value, L"yes") == 0 ||
-		_wcsicmp(value, L"on") == 0;
-}
-
-
-inline bool GetIniBool(CSimpleIniW & ini, bool& dirty, const wchar_t* section, const wchar_t* key, bool def)
-{
-	const wchar_t* value = ini.GetValue(section, key, nullptr);
-	if (!value)
-	{
-		ini.SetValue(section, key, def ? L"true" : L"false");
-		dirty = true;
-		return def;
-	}
-	return ParseBool(value);
-}
-
-inline std::wstring GetIniString(CSimpleIniW& ini, bool& dirty, const wchar_t* section, const wchar_t* key, const wchar_t* def, bool forceDefault = false)
-{
-	const wchar_t* value = ini.GetValue(section, key, nullptr);
-	if (!value)
-	{
-		ini.SetValue(section, key, def);
-		dirty = true;
-		return def;
-	}
-	if (forceDefault && std::wcscmp(value, def) != 0)
-	{
-		ini.SetValue(section, key, def);
-		dirty = true;
-		return def;
-	}
-	return value;
-}
-
-std::vector<std::wstring> GetExtensionsID(const std::wstring& input)
-{
-	std::vector<std::wstring> result;
-	std::wstringstream ss(input);
-	std::wstring token;
-
-	while (std::getline(ss, token, L',')) {
-		token.erase(0, token.find_first_not_of(L" \t"));
-		token.erase(token.find_last_not_of(L" \t") + 1);
-
-		if (!token.empty()) {
-			result.push_back(token);
-		}
-	}
-	return result;
-}
-
-static void EnableExtension(
-	ICoreWebView2BrowserExtension* extension,
-	BOOL enable)
-{
-	extension->Enable(
-		enable,
-		Callback<ICoreWebView2BrowserExtensionEnableCompletedHandler>(
-			[](HRESULT hr) -> HRESULT
-			{
-				if (FAILED(hr))
-					ShowFailure(hr, L"Enable extension failed");
-				return S_OK;
-			}).Get());
-}
-
-static void RemoveExtension(void* rm,
-	ICoreWebView2BrowserExtension* extension,
-	const std::wstring& name)
-{
-	extension->Remove(
-		Callback<ICoreWebView2BrowserExtensionRemoveCompletedHandler>(
-			[](HRESULT hr) -> HRESULT
-			{
-				if (FAILED(hr))
-					ShowFailure(hr, L"Uninstall extension failed");
-				return S_OK;
-			}).Get());
-
-	RmLogF(rm, LOG_DEBUG, L"WebView2: \"%s\" extension removed.", name.c_str());
-}
-
 
 // Create WebView2 environment and controller
 void CreateWebView2(Measure* measure)
@@ -286,35 +197,6 @@ HRESULT Measure::CreateEnvironmentHandler(HRESULT result, ICoreWebView2Environme
 	}
 
 	return S_OK;
-}
-
-std::wstring NormalizeUri(const std::wstring& uri)
-{
-	const std::wstring scheme_sep = L"://";
-	auto scheme_pos = uri.find(scheme_sep);
-	if (scheme_pos == std::wstring::npos)
-		return uri;
-
-	const std::wstring scheme = uri.substr(0, scheme_pos);
-	const size_t after_scheme = scheme_pos + scheme_sep.length();
-
-	if (scheme == L"file")
-	{
-		size_t last_slash = uri.find_last_of(L'/');
-		if (last_slash != std::wstring::npos)
-		{
-			return uri.substr(0, last_slash + 1);
-		}
-		return uri;
-	}
-
-	size_t path_start = uri.find(L'/', after_scheme);
-	if (path_start == std::wstring::npos)
-	{
-		return uri + L"/";
-	}
-
-	return uri.substr(0, path_start + 1);
 }
 
 void RegisterFrames(Measure* measure, ICoreWebView2Frame* rawFrame, int level)

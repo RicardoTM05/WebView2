@@ -1,5 +1,10 @@
-// Copyright (C) 2025 nstechbytes. All rights reserved.
+/*
+** Copyright (C) 2025 nstechbytes. All rights reserved.
+*/
+
 #include "Plugin.h"
+#include "Utils.h"
+#include "PathUtils.h"
 #include "../API/RainmeterAPI.h"
 #include <WebView2EnvironmentOptions.h>
 #include <CommCtrl.h>
@@ -24,15 +29,6 @@ std::atomic<int>  g_refCount(0);
 static std::atomic<bool> g_hookAlive{ false };
 
 static std::mutex g_skinMapMutex;
-
-std::wstring ToLower(std::wstring s)
-{
-	if (!s.empty())
-	{
-		CharLowerBuffW(s.data(), static_cast<DWORD>(s.size()));
-	}
-	return s;
-}
 
 // DllMain to load TypeLib from embedded resources
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -138,6 +134,37 @@ void FeatureNotAvailable()
 		L"Feature Not Available", MB_OK);
 }
 
+std::wstring GetHostName(const std::wstring& input, bool origin)
+{
+	std::wstring result;
+	result.reserve(input.size());
+
+	for (wchar_t ch : input)
+	{
+		if (origin && (ch == L'/' || ch == L'\\'))
+		{
+			break; // stop processing at first '/'
+		}
+
+		if ((ch >= L'a' && ch <= L'z') ||
+			(ch >= L'A' && ch <= L'Z') ||
+			(ch >= L'0' && ch <= L'9'))
+		{
+			result.push_back(ch);
+		}
+		else
+		{
+			result.push_back(L'-');
+		}
+	}
+
+	// convert to lowercase
+	result = ToLower(result);
+
+	return result;
+}
+
+// WebView2 helper functions
 void UpdateWindowBounds(Measure* measure)
 {
 	if (!measure || !measure->webViewController)
@@ -173,36 +200,6 @@ void UpdateChildWindowState(Measure* measure, bool enabled, bool shouldDefocus)
 			}
 		}
 	}
-}
-
-std::wstring GetHostName(const std::wstring& input, bool origin)
-{
-	std::wstring result;
-	result.reserve(input.size());
-
-	for (wchar_t ch : input)
-	{
-		if (origin && (ch == L'/' || ch == L'\\'))
-		{
-			break; // stop processing at first '/'
-		}
-
-		if ((ch >= L'a' && ch <= L'z') ||
-			(ch >= L'A' && ch <= L'Z') ||
-			(ch >= L'0' && ch <= L'9'))
-		{
-			result.push_back(ch);
-		}
-		else
-		{
-			result.push_back(L'-');
-		}
-	}
-
-	// convert to lowercase
-	result = ToLower(result);
-
-	return result;
 }
 
 // Skin subclass procedure
@@ -412,158 +409,6 @@ void RemoveKeyboardHook()
 		UnhookWindowsHookEx(g_kbHook);
 		g_kbHook = nullptr;
 	}
-}
-
-static std::wstring Utf8ToWstring(const char* data, int len)
-{
-	if (len <= 0) return std::wstring();
-
-	// First call to get required buffer size
-	int required = MultiByteToWideChar(CP_UTF8, 0, data, len, nullptr, 0);
-	if (required == 0) {
-		throw std::runtime_error("Utf8ToWstring: MultiByteToWideChar failed (size query)");
-	}
-
-	std::wstring out;
-	out.resize(required);
-	int res = MultiByteToWideChar(CP_UTF8, 0, data, len, &out[0], required);
-	if (res == 0) {
-		throw std::runtime_error("Utf8ToWstring: MultiByteToWideChar failed (conversion)");
-	}
-	return out;
-}
-
-std::wstring ReadScriptFile(const std::wstring& path)
-{
-	std::ifstream is(path, std::ios::binary);
-	if (!is) {
-		throw std::runtime_error("Failed to open file");
-	}
-
-	// Read all bytes
-	std::vector<char> bytes((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
-	size_t n = bytes.size();
-	if (n == 0) return std::wstring();
-
-	const unsigned char* ub = reinterpret_cast<const unsigned char*>(bytes.data());
-
-	// Detect BOMs
-	if (n >= 3 && ub[0] == 0xEFu && ub[1] == 0xBBu && ub[2] == 0xBFu) {
-		// UTF-8 with BOM -> skip BOM then convert
-		return Utf8ToWstring(reinterpret_cast<const char*>(ub + 3), static_cast<int>(n - 3));
-	}
-
-	if (n >= 2 && ub[0] == 0xFFu && ub[1] == 0xFEu) {
-		// UTF-16 LE with BOM
-		std::wstring out;
-		out.reserve((n - 2) / 2);
-		for (size_t i = 2; i + 1 < n; i += 2) {
-			wchar_t ch = static_cast<wchar_t>(ub[i] | (ub[i + 1] << 8));
-			out.push_back(ch);
-		}
-		return out;
-	}
-
-	if (n >= 2 && ub[0] == 0xFEu && ub[1] == 0xFFu) {
-		// UTF-16 BE with BOM -> swap bytes
-		std::wstring out;
-		out.reserve((n - 2) / 2);
-		for (size_t i = 2; i + 1 < n; i += 2) {
-			wchar_t ch = static_cast<wchar_t>((ub[i] << 8) | ub[i + 1]);
-			out.push_back(ch);
-		}
-		return out;
-	}
-
-	// No BOM: assume UTF-8 and convert
-	return Utf8ToWstring(reinterpret_cast<const char*>(ub), static_cast<int>(n));
-}
-
-bool IsFilePathSyntax(LPCWSTR input) {
-	if (!input || input[0] == L'\0') return false;
-
-	bool hasExtension = false;
-	bool hasSeparator = false;
-	bool hasIllegalChar = false;
-
-	const wchar_t* lastDot = nullptr;
-	const wchar_t* p = input;
-
-	while (*p) {
-		if (wcschr(L"<>:\"|?*();'", *p)) {
-			if (!(*p == L':' && p == input + 1)) {
-				return false; 
-			}
-		}
-
-		if (*p == L'\\' || *p == L'/') {
-			hasSeparator = true;
-			lastDot = nullptr;
-		}
-		else if (*p == L'.') {
-			lastDot = p;
-		}
-		p++;
-	}
-
-	if (lastDot != nullptr && lastDot != input) {
-		if (!iswspace(*(lastDot + 1)) && *(lastDot + 1) != L'\0') {
-			hasExtension = true;
-		}
-	}
-
-	bool hasSpace = (wcschr(input, L' ') != nullptr);
-
-	if (hasSpace && !hasSeparator) {
-		return false;
-	}
-
-	return hasSeparator || hasExtension;
-}
-
-std::wstring NormalizePath(void* rm, LPCWSTR path)
-{
-	if (!path || !*path)
-		return {};
-
-	std::wstring value = path;
-
-	// Relative path - absolute
-	if (value[0] != L'/' && (value.length() < 2 || value[1] != L':'))
-	{
-		if (LPCWSTR absolutePath = RmPathToAbsolute(rm, value.c_str()))
-		{
-			value = absolutePath;
-		}
-	}
-
-	// Normalize slashes
-	for (wchar_t& ch : value)
-	{
-		if (ch == L'\\') ch = L'/';
-	}
-
-	// Enforce extension if required
-	auto dotPos = value.find_last_of(L'.');
-	if (dotPos == std::wstring::npos)
-	{
-		RmLog(rm, LOG_ERROR, L"Execute: File extension is missing, use '.js'.");
-		return {};
-	}
-
-	std::wstring extension = value.substr(dotPos);
-	for (wchar_t& ch : extension)
-		ch = towlower(ch);
-
-	if (_wcsicmp(extension.c_str(), L".js") != 0)
-	{
-		std::wstring msg = L"Execute: The file extension '";
-		msg.append(extension);
-		msg += L"' is not supported. Use '.js' extension.";
-		RmLog(rm, LOG_ERROR, msg.c_str());
-		return {};
-	}
-	return value;
 }
 
 // Rainmeter Plugin Exports
