@@ -1,6 +1,6 @@
-/**
-*  Copyright (C) 2025 nstechbytes. All rights reserved.
-*/ 
+/*
+** Copyright (C) 2025 nstechbytes. All rights reserved.
+*/
 
 #pragma once
 
@@ -126,14 +126,13 @@ void CreateWebView2(Measure* measure);
 void StopWebView2(Measure* measure);
 void RestartWebView2(Measure* measure);
 void UpdateChildWindowState(Measure* measure, bool enabled, bool shouldDefocus = true);
+void UpdateWindowBounds(Measure* measure);
 
-// Taken from: https://github.com/MicrosoftEdge/WebView2Samples/blob/main/SampleApps/WebView2APISample/CheckFailure.h
-// Notify the user of a failure with a message box.
+// Helper functions
 void ShowFailure(HRESULT hr, const std::wstring& message = L"Error");
-// If something failed, show the error code and fail fast.
 void CheckFailure(HRESULT hr, const std::wstring& message = L"Error");
-// Notify the user that a feature is not available
 void FeatureNotAvailable();
+std::wstring GetHostName(const std::wstring& input, bool origin);
 
 #define CHECK_FAILURE_STRINGIFY(arg) #arg
 #define CHECK_FAILURE_FILE_LINE(file, line) ([](HRESULT hr){ CheckFailure(hr, L"Failure at " CHECK_FAILURE_STRINGIFY(file) L"(" CHECK_FAILURE_STRINGIFY(line) L")"); })

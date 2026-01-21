@@ -23,13 +23,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HostObjectRmAPI.cpp" />
+    <ClCompile Include="PathUtils.cpp" />
     <ClCompile Include="Plugin.cpp" />
+    <ClCompile Include="Utils.cpp" />
     <ClCompile Include="WebView2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HostObjectRmAPI.h" />
+    <ClInclude Include="PathUtils.h" />
     <ClInclude Include="Plugin.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Utils.h" />
     <ClInclude Include="Ini\SimpleIni.h" />
   </ItemGroup>
   <ItemGroup>
