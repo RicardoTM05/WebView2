@@ -5,61 +5,11 @@
 #include "Plugin.h"
 #include "Utils.h"
 #include "PathUtils.h"
+#include "Extension.h"
 #include "HostObjectRmAPI.h"
 #include "../API/RainmeterAPI.h"
 #include <WebView2EnvironmentOptions.h>
 #include <filesystem>
-
-bool g_extensions_checked = false;
-
-std::vector<std::wstring> GetExtensionsID(const std::wstring& input)
-{
-	std::vector<std::wstring> result;
-	std::wstringstream ss(input);
-	std::wstring token;
-
-	while (std::getline(ss, token, L',')) {
-		token.erase(0, token.find_first_not_of(L" \t"));
-		token.erase(token.find_last_not_of(L" \t") + 1);
-
-		if (!token.empty()) {
-			result.push_back(token);
-		}
-	}
-	return result;
-}
-
-static void EnableExtension(
-	ICoreWebView2BrowserExtension* extension,
-	BOOL enable)
-{
-	extension->Enable(
-		enable,
-		Callback<ICoreWebView2BrowserExtensionEnableCompletedHandler>(
-			[](HRESULT hr) -> HRESULT
-			{
-				if (FAILED(hr))
-					ShowFailure(hr, L"Enable extension failed");
-				return S_OK;
-			}).Get());
-}
-
-static void RemoveExtension(void* rm,
-	ICoreWebView2BrowserExtension* extension,
-	const std::wstring& name)
-{
-	extension->Remove(
-		Callback<ICoreWebView2BrowserExtensionRemoveCompletedHandler>(
-			[](HRESULT hr) -> HRESULT
-			{
-				if (FAILED(hr))
-					ShowFailure(hr, L"Uninstall extension failed");
-				return S_OK;
-			}).Get());
-
-	RmLogF(rm, LOG_DEBUG, L"WebView2: \"%s\" extension removed.", name.c_str());
-}
-
 
 // Create WebView2 environment and controller
 void CreateWebView2(Measure* measure)

@@ -28,8 +28,6 @@ extern wil::com_ptr<ITypeLib> g_typeLib;
 
 struct SkinSubclassData;
 
-extern bool g_extensions_checked;
-
 // Measure structure containing WebView2 state
 struct Measure
 {

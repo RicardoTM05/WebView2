@@ -14,6 +14,7 @@
     <ClCompile Include="Plugin.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="PathUtils.cpp" />
+    <ClCompile Include="Extension.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HostObjectRmAPI.h" />
@@ -22,6 +23,7 @@
     <ClInclude Include="HostObject_h.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="PathUtils.h" />
+    <ClInclude Include="Extension.h" />
     <ClInclude Include="Ini\SimpleIni.h">
       <Filter>Ini</Filter>
     </ClInclude>
